@@ -4,16 +4,29 @@ import { burnCost, nodeIndex } from '../sim/nodes.js';
 export const HANDLE_BASE = 1.5; // handle distance from its node, in screen-scaled units u
 export const DV_SCALE = 2;      // u of handle travel per 1.0 of delta-v
 
+const TAU = Math.PI * 2;
+/** Clamp an angle into [lo, hi] (radians); a full circle, or no range, leaves it unchanged. */
+export function clampAngle(angle, range) {
+  if (!range || range[1] - range[0] >= TAU - 1e-9) return angle;
+  const [lo, hi] = range, mid = (lo + hi) / 2;
+  const a = angle - TAU * Math.round((angle - mid) / TAU); // nearest representative to the arc's middle
+  return Math.min(hi, Math.max(lo, a));
+}
+
 const quantize = (t) => nodeIndex(t) * DT;
 
 /** Launch aim, burn nodes, selection, and the fuel budget. Pure: no three.js, no DOM. */
 export class Plan {
-  constructor({ fuel, maxNodes }) {
-    this.fuel = fuel; this.maxNodes = maxNodes;
-    this.aim = { angle: 0.6, power: 0.7 };
+  constructor({ fuel, maxNodes, angleRange = null }) {
+    this.fuel = fuel; this.maxNodes = maxNodes; this.angleRange = angleRange;
+    this.aim = { angle: angleRange ? (angleRange[0] + angleRange[1]) / 2 : 0.6, power: 0.7 };
     this.nodes = [];      // { t: seconds after launch, dv: [prograde, radial] }, sorted by t
     this.selected = -1;
     this.elapsed = 0;     // seconds since launch; nodes at or before this are locked
+  }
+  /** Set the launch aim; the angle is clamped to the level's allowed launch arc (radians). */
+  setAim({ angle, power }) {
+    this.aim = { angle: clampAngle(angle, this.angleRange), power: Math.min(1, Math.max(0, power)) };
   }
   fuelUsed() { return this.nodes.reduce((s, n) => s + burnCost(n.dv), 0); }
   fuelLeft() { return this.fuel - this.fuelUsed(); }

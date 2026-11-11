@@ -29,7 +29,7 @@ export function createControls(ctx) {
     if (ctx.phase() !== 'planning') return null;
     const aimTo = (p) => {
       const pad = ctx.pad(), dx = p[0] - pad.x, dz = p[1] - pad.z;
-      plan.aim = { angle: Math.atan2(dz, dx), power: Math.min(1, Math.hypot(dx, dz) / AIM_RANGE) };
+      plan.setAim({ angle: Math.atan2(dz, dx), power: Math.hypot(dx, dz) / AIM_RANGE });
       ctx.changed();
     };
     aimTo(pt);
@@ -49,10 +49,10 @@ export function createControls(ctx) {
     if (sel >= 0 && (k === 'Delete' || k === 'Backspace')) { plan.removeNode(sel); ctx.changed(); return true; }
     if (ctx.phase() !== 'planning') return false;
     const a = plan.aim;
-    if (k === 'ArrowLeft') plan.aim = { ...a, angle: a.angle - fine };
-    else if (k === 'ArrowRight') plan.aim = { ...a, angle: a.angle + fine };
-    else if (k === 'ArrowUp') plan.aim = { ...a, power: Math.min(1, a.power + 0.02) };
-    else if (k === 'ArrowDown') plan.aim = { ...a, power: Math.max(0, a.power - 0.02) };
+    if (k === 'ArrowLeft') plan.setAim({ ...a, angle: a.angle - fine });
+    else if (k === 'ArrowRight') plan.setAim({ ...a, angle: a.angle + fine });
+    else if (k === 'ArrowUp') plan.setAim({ ...a, power: a.power + (e.shiftKey ? 0.003 : 0.02) });
+    else if (k === 'ArrowDown') plan.setAim({ ...a, power: a.power - (e.shiftKey ? 0.003 : 0.02) });
     else return false;
     ctx.changed();
     return true;

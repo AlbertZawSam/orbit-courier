@@ -37,4 +37,20 @@ export const LEVELS = [
     tags: ['launch', 'capture', 'orbit'],
     solution: { launch: { angle: 4.294, power: 5.417, t0: 0 }, nodes: [] },
   },
+  {
+    id: 'L3', name: 'Burn Nodes', tier: 'training',
+    system: { bodies: [SOL, home, kepi(4.4, 30)] }, hazards: [],
+    bounds: 120,
+    launch: { padBody: 'home', angleRange: [0, Math.PI * 2], maxSpeed: 7 },
+    mission: { type: 'deliver_orbit', target: 'kepi', rMin: 0.8, rMax: 3.5, holdSeconds: 12 },
+    fuel: 1, maxNodes: 1, slowMoSeconds: 4, tugCount: 0, tugMuMax: 0, timeLimit: null,
+    par: { fuel: 0.3 },
+    hints: [
+      'Holding the orbit for 12 seconds is long. A launch alone swings you past Kepi and out of range.',
+      'Slow down near Kepi with a retrograde burn. Click the path close to where you pass it, then drag the brass handle backward.',
+      'Launch near 156 degrees at power 6.25, then add a node about 5.6 s in with a small retrograde burn of 0.3.',
+    ],
+    tags: ['burn-node', 'retrograde', 'capture', 'fuel'],
+    solution: { launch: { angle: 2.723, power: 6.252, t0: 0 }, nodes: [{ t: 5.6, dv: [-0.3, 0] }] },
+  },
 ];

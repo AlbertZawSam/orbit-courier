@@ -52,7 +52,7 @@ function loadLevel(i) {
   pad = sys.byId[level.launch.padBody];
   bodies?.dispose();
   bodies = createBodies(stage.scene, sys.bodies);
-  plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes });
+  plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange });
   slow = new SlowMo(level.slowMoSeconds);
   controls = createControls({
     plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow,

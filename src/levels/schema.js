@@ -30,6 +30,8 @@ export function validateLevel(l) {
   if (l.solution) {
     need(l.solution.nodes.length <= l.maxNodes, 'solution uses more nodes than maxNodes');
     need(l.solution.launch.power <= l.launch.maxSpeed, 'solution power exceeds launch.maxSpeed');
+    const r = l.launch.angleRange;
+    if (r) need(l.solution.launch.angle >= r[0] - 1e-9 && l.solution.launch.angle <= r[1] + 1e-9, 'solution angle is outside launch.angleRange');
   }
   return e;
 }

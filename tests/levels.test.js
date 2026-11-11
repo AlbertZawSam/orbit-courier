@@ -26,6 +26,18 @@ describe('levels', () => {
         const a = replay(level, level.solution), b = replay(level, level.solution);
         expect(b).toEqual(a);
       });
+      if (level.solution.nodes.length > 0) {
+        it('needs its burn node: the same launch alone does not deliver', () => {
+          const r = replay(level, { launch: level.solution.launch, nodes: [] }, { maxSeconds: 60 });
+          expect(r.outcome).not.toBe('delivered');
+        });
+        it('tolerates node timing errors of a few tenths of a second', () => {
+          for (const dt of [-0.3, 0.3]) {
+            const nodes = level.solution.nodes.map((n) => ({ ...n, t: n.t + dt }));
+            expect(replay(level, { launch: level.solution.launch, nodes }).outcome).toBe('delivered');
+          }
+        });
+      }
       it('a launch straight into the pad body crashes instead of passing', () => {
         const r = replay(level, { launch: { angle: 0, power: 0, t0: 0 }, nodes: [] }, { maxSeconds: 30 });
         expect(r.outcome).toBe('crash');

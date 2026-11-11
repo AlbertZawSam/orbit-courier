@@ -31,7 +31,10 @@ export function nodeBasis(p, t, sys) {
   const rvx = p.vx - bvx, rvz = p.vz - bvz, speed = Math.hypot(rvx, rvz);
   const pro = speed > 1e-12 ? [rvx / speed, rvz / speed] : [1, 0];
   let rad = [-pro[1], pro[0]];
-  if (rad[0] * (p.x - bx) + rad[1] * (p.z - bz) < 0) rad = [-rad[0], -rad[1]];
+  // Point the radial axis away from the body. When flying straight at or away from it the two are
+  // nearly perpendicular and the sign would flip on noise, so keep the counter-clockwise axis then.
+  const away = rad[0] * (p.x - bx) + rad[1] * (p.z - bz);
+  if (away < -1e-6) rad = [-rad[0], -rad[1]];
   return { pro, rad, bodyId: dom.id };
 }
 
