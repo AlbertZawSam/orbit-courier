@@ -26,13 +26,18 @@ import { Plan } from './game/plan.js';
 import { SlowMo } from './game/slowmo.js';
 import { buildLevelSystem, levelLaunch } from './game/replay.js';
 import { LEVELS } from './levels/levels.js';
+import { GALLERY } from './levels/gallery.js';
+import { createSky } from './render/sky.js';
 
+const GALLERY_MODE = location.hash === '#gallery'; // renderer test bench: dist/index.html#gallery
+const LIST = GALLERY_MODE ? [GALLERY] : LEVELS;
 const bus = createBus();
 const storage = createStorage('');
 const settings = createSettings(storage);
 const telemetry = createTelemetry({ bus, storage });
 const stage = createStage(document.getElementById('stage'));
 const cam = createCamera(stage.camera);
+const sky = createSky(stage.scene, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
 const trajectory = createTrajectory(stage.scene);
 const probeView = createProbeView(stage.scene, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
 const nodeView = createNodeView(stage.scene);
@@ -59,7 +64,10 @@ const card = createResultCard(document.getElementById('card'), {
   onAsk: () => { coachPanel.open(); coachPanel.ask('What went wrong?'); },
 });
 
-function applyQuality() { stage.post.apply(tierSettings(tierName)); }
+function applyQuality() {
+  const tier = tierSettings(tierName);
+  stage.post.apply(tier); sky.setTier(tier); bodies?.setDetail(tier.planetDetail);
+}
 function cycleQuality() {
   const choice = nextChoice(settings.get('quality'));
   settings.set('quality', choice);
@@ -74,14 +82,16 @@ function relSpeed(p, t) {
 }
 
 function loadLevel(i) {
-  levelIndex = ((i % LEVELS.length) + LEVELS.length) % LEVELS.length;
-  level = LEVELS[levelIndex];
-  location.hash = level.id;
+  levelIndex = ((i % LIST.length) + LIST.length) % LIST.length;
+  level = LIST[levelIndex];
+  if (!GALLERY_MODE) location.hash = level.id;
   sys = buildLevelSystem(level);
   pad = sys.byId[level.launch.padBody];
   bodies?.dispose();
-  bodies = createBodies(stage.scene, sys.bodies);
-  plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange });
+  bodies = createBodies(stage.scene, sys.bodies, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
+  bodies.setDetail(tierSettings(tierName).planetDetail);
+  const [tx, tz] = sys.byId[level.mission.target].pos(t0), [px0, pz0] = pad.pos(t0);
+  plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange, defaultAim: { angle: Math.atan2(tz - pz0, tx - px0), power: 0.8 } });
   slow = new SlowMo(level.slowMoSeconds);
   controls = createControls({
     plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(), cycleQuality,
@@ -93,8 +103,7 @@ function loadLevel(i) {
   bus.emit('level_start', { levelId: level.id, mode: 'easy', tutorial: false });
   const m = level.mission;
   hud.set({ mission: `${level.name}: orbit ${bodyName(m.target)} at ${m.rMin}-${m.rMax} for ${m.holdSeconds} s` });
-  const [px, pz] = pad.pos(t0);
-  cam.snap(px, pz);
+  cam.snap((px0 + tx) / 2, (pz0 + tz) / 2);
   reset();
 }
 
@@ -152,12 +161,18 @@ function reset() {
   card.hide();
   probeView.hide(); probeView.resetTrail(); trajectory.setVisible(true);
   bodies.update(t0);
-  const [px, pz] = pad.pos(t0); cam.setTarget(px, pz);
+  frameCamera();
   hud.setPhase(phase); changed();
 }
 
 function endSlow() {
   if (slowWasActive) { bus.emit('slowmo_end', { seconds: slowSpent }); slowWasActive = false; slowSpent = 0; }
+}
+
+/** While planning, centre the view between the launch pad and the target so both are on screen. */
+function frameCamera() {
+  const [px, pz] = pad.pos(t0), [tx, tz] = sys.byId[level.mission.target].pos(t0);
+  cam.setTarget((px + tx) / 2, (pz + tz) / 2);
 }
 
 function toggleSlow() {
@@ -172,7 +187,7 @@ function finish(outcome, reason) {
   bus.emit('attempt_end', { outcome, fuelUsed: flight.fuelUsed, seconds: flight.elapsed, closestApproaches: { ...flight.closest } });
   if (outcome === 'delivered') {
     const s = scoreAttempt(level, { outcome: 'delivered', fuelUsed: flight.fuelUsed, seconds: flight.elapsed });
-    card.win({ level, ...s, fuelUsed: flight.fuelUsed, seconds: flight.elapsed, hasNext: levelIndex + 1 < LEVELS.length });
+    card.win({ level, ...s, fuelUsed: flight.fuelUsed, seconds: flight.elapsed, hasNext: levelIndex + 1 < LIST.length });
   } else card.lose({ level, reason });
 }
 bus.on('crash', (e) => finish(`crash:${e.bodyId}`, `Crashed into ${bodyName(e.bodyId)} at t = ${(e.t - t0).toFixed(1)} s.`));
@@ -185,8 +200,9 @@ createInput({
 });
 
 applyQuality();
-const fromHash = LEVELS.findIndex((l) => l.id === location.hash.slice(1));
+const fromHash = LIST.findIndex((l) => l.id === location.hash.slice(1));
 loadLevel(fromHash >= 0 ? fromHash : 0);
+if (GALLERY_MODE) cam.zoom(2.1);
 
 let last = performance.now();
 stage.renderer.setAnimationLoop((now) => {
@@ -213,6 +229,7 @@ stage.renderer.setAnimationLoop((now) => {
     probeView.place(flight.probe.x, flight.probe.z);
   } else hud.set({ slow: `${slow.left.toFixed(1)} s` });
   cam.update(dt);
+  sky.update(stage.camera, now / 1000);
   if (pred && Math.abs(u() - lastU) / lastU > 0.03) { lastU = u(); nodeView.update(plan, pred, lastU); }
   stage.render();
 });

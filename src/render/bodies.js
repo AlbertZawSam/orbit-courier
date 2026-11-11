@@ -1,34 +1,57 @@
 import * as THREE from 'three';
+import { createBodyMesh } from './planets.js';
 
-const LOOK = {
-  star: { color: 0xf2c14e, emissive: 0xf2c14e },
-  rocky: { color: 0x4a7fb5 },
-  moon: { color: 0xb7ad9a },
-  gas: { color: 0xc9915a },
-  ice: { color: 0xa9d6e5 },
-  station: { color: 0xefe8d8 },
-};
+/** Radial gradient corona drawn on a canvas (no image assets). */
+function coronaTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const g = c.getContext('2d'), grad = g.createRadialGradient(128, 128, 0, 128, 128, 128);
+  grad.addColorStop(0.0, 'rgba(255,240,200,1)'); grad.addColorStop(0.18, 'rgba(255,196,110,0.75)');
+  grad.addColorStop(0.45, 'rgba(255,130,60,0.22)'); grad.addColorStop(1.0, 'rgba(255,90,40,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 256, 256);
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
 
-/** Simple lit spheres for every body, plus the star's point light. Procedural shading comes in stage 8. */
-export function createBodies(scene, bodies) {
+/**
+ * Procedural bodies (no textures) lit by the star, with a point light for the probe and a corona on the star.
+ * `update(t)` places bodies and animates by sim time, so a paused planning phase is perfectly still.
+ */
+export function createBodies(scene, bodies, { reducedMotion = () => false } = {}) {
   const group = new THREE.Group();
   scene.add(group);
-  const meshes = {};
+  const shared = { uSun: { value: new THREE.Vector3() }, uTime: { value: 0 } };
+  const parts = {}, meshes = {};
+  let corona = null, texture = null;
   for (const b of bodies) {
-    const look = LOOK[b.kind] ?? LOOK.moon;
-    const mat = new THREE.MeshStandardMaterial({ color: look.color, roughness: 0.9, metalness: 0, emissive: look.emissive ?? 0x000000, emissiveIntensity: look.emissive ? 2.2 : 1 });
-    const mesh = new THREE.Mesh(new THREE.SphereGeometry(b.radius, 32, 20), mat);
-    mesh.name = b.id;
-    group.add(mesh);
-    meshes[b.id] = mesh;
+    const part = createBodyMesh(b, shared);
+    group.add(part.group);
+    parts[b.id] = part; meshes[b.id] = part.group;
     if (b.kind === 'star') {
-      const light = new THREE.PointLight(0xfff2d6, 4, 0, 0);
-      mesh.add(light);
+      group.add(Object.assign(new THREE.PointLight(0xfff2d6, 4, 0, 0), { name: 'sunlight' }));
+      texture = coronaTexture();
+      corona = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+      corona.scale.setScalar(b.radius * 6);
+      group.add(corona);
     }
   }
+  const star = bodies.find((b) => b.kind === 'star');
   return {
     meshes,
-    dispose() { scene.remove(group); group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); },
-    update(t) { for (const b of bodies) { const [x, z] = b.pos(t); meshes[b.id].position.set(x, 0, z); } },
+    update(t) {
+      const still = reducedMotion();
+      shared.uTime.value = still ? 0 : t;
+      if (star) { const [sx, sz] = star.pos(t); shared.uSun.value.set(sx, 0, sz); group.getObjectByName('sunlight').position.set(sx, 0, sz); corona.position.set(sx, 0, sz); }
+      for (const b of bodies) {
+        const [x, z] = b.pos(t), part = parts[b.id];
+        part.group.position.set(x, 0, z);
+        part.spinner.rotation.y = still ? 0.4 : t * part.spin;
+      }
+    },
+    setDetail(detail) { for (const p of Object.values(parts)) p.setDetail(detail); },
+    dispose() {
+      scene.remove(group);
+      group.traverse((o) => { o.geometry?.dispose(); });
+      for (const p of Object.values(parts)) for (const m of p.mats) m.dispose();
+      texture?.dispose(); corona?.material.dispose();
+    },
   };
 }

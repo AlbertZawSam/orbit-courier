@@ -17,9 +17,12 @@ const quantize = (t) => nodeIndex(t) * DT;
 
 /** Launch aim, burn nodes, selection, and the fuel budget. Pure: no three.js, no DOM. */
 export class Plan {
-  constructor({ fuel, maxNodes, angleRange = null }) {
+  constructor({ fuel, maxNodes, angleRange = null, defaultAim = null }) {
     this.fuel = fuel; this.maxNodes = maxNodes; this.angleRange = angleRange;
-    this.aim = { angle: angleRange ? (angleRange[0] + angleRange[1]) / 2 : 0.6, power: 0.7 };
+    this.aim = { angle: 0.6, power: 0.8 };
+    if (defaultAim) this.aim = { angle: defaultAim.angle, power: defaultAim.power };
+    else if (angleRange && angleRange[1] - angleRange[0] < TAU - 1e-9) this.aim.angle = (angleRange[0] + angleRange[1]) / 2;
+    this.aim.angle = clampAngle(this.aim.angle, angleRange);
     this.nodes = [];      // { t: seconds after launch, dv: [prograde, radial] }, sorted by t
     this.selected = -1;
     this.elapsed = 0;     // seconds since launch; nodes at or before this are locked

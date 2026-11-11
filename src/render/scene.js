@@ -11,7 +11,6 @@ export function createStage(canvas) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color(COLORS.void);
-  scene.add(new THREE.AmbientLight(0x6a5a8a, 0.55));
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
 
   const post = createPost(renderer, scene, camera);
@@ -30,7 +29,7 @@ export function createStage(canvas) {
 /** Damped follow camera looking mostly down at the sim plane. */
 export function createCamera(camera) {
   const target = new THREE.Vector3(), goal = new THREE.Vector3();
-  let dist = 20, goalDist = 20;
+  let dist = 15, goalDist = 15;
   return {
     setTarget(x, z) { goal.set(x, 0, z); },
     snap(x, z) { goal.set(x, 0, z); target.copy(goal); },

@@ -11,12 +11,14 @@
     "levels": "node scripts/verify-levels.mjs",
     "build": "npm run kb && vite build && node scripts/check-offline.mjs",
     "preview": "vite preview",
-    "verify": "npm test && npm run levels && npm run build"
+    "verify": "npm test && npm run levels && npm run build",
+    "shot": "node scripts/shot.mjs"
   },
   "dependencies": {
     "three": "0.160.0"
   },
   "devDependencies": {
+    "playwright": "1.65.0",
     "vite": "8.3.8",
     "vite-plugin-singlefile": "2.3.4",
     "vitest": "5.1.0"

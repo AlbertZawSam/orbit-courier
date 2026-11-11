@@ -79,3 +79,19 @@ describe('scoring', () => {
     expect(scoreAttempt(level, { outcome: 'crash', fuelUsed: 0, seconds: 3 })).toMatchObject({ stars: 0, payout: 0 });
   });
 });
+
+describe('renderer test bench', () => {
+  it('is not a level, so it never reaches the verifier or the level list', async () => {
+    const { GALLERY } = await import('../src/levels/gallery.js');
+    expect(LEVELS.map((l) => l.id)).not.toContain(GALLERY.id);
+    const kinds = GALLERY.system.bodies.map((b) => b.kind);
+    expect(kinds).toEqual(expect.arrayContaining(['star', 'rocky', 'moon', 'gas', 'ice']));
+    expect(GALLERY.system.bodies.some((b) => b.rings)).toBe(true);
+  });
+  it('gives Home an earthlike style and every body a known kind', () => {
+    for (const l of LEVELS) {
+      expect(l.system.bodies.find((b) => b.id === 'home').style).toBe('earthlike');
+      for (const b of l.system.bodies) expect(['star', 'rocky', 'moon', 'gas', 'ice', 'station']).toContain(b.kind);
+    }
+  });
+});

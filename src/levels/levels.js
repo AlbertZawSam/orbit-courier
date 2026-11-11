@@ -1,7 +1,7 @@
 // Level definitions (schema: AGENTS.md 8.1). Every level carries a stored `solution` that
 // `npm run levels` replays headlessly; a failing solution means the level is broken.
 const SOL = { id: 'sol', name: 'Sol', kind: 'star', mu: 1000, radius: 2 };
-const home = { id: 'home', name: 'Home', kind: 'rocky', mu: 20, radius: 0.8, orbit: { a: 30, e: 0, phase: 0, parent: 'sol' } };
+const home = { id: 'home', name: 'Home', kind: 'rocky', style: 'earthlike', mu: 20, radius: 0.8, orbit: { a: 30, e: 0, phase: 0, parent: 'sol' } };
 const kepi = (phase, mu = 14) => ({ id: 'kepi', name: 'Kepi', kind: 'moon', mu, radius: 0.5, orbit: { a: 5, e: 0, phase, parent: 'home' } });
 
 export const LEVELS = [

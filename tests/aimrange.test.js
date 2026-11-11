@@ -26,3 +26,18 @@ describe('launch arc', () => {
     expect(plan.aim.power).toBe(0);
   });
 });
+
+describe('default aim', () => {
+  it('starts from the supplied aim, clamped to the launch arc', () => {
+    const p = new Plan({ fuel: 1, maxNodes: 1, defaultAim: { angle: 1.2, power: 0.8 } });
+    expect(p.aim).toEqual({ angle: 1.2, power: 0.8 });
+    const arc = new Plan({ fuel: 1, maxNodes: 1, angleRange: [4.75, 5.45], defaultAim: { angle: 1.0, power: 0.8 } });
+    expect(arc.aim.angle).toBeGreaterThanOrEqual(4.75);
+    expect(arc.aim.angle).toBeLessThanOrEqual(5.45);
+  });
+  it('a full-circle level no longer defaults to pointing at an arbitrary angle', () => {
+    const p = new Plan({ fuel: 1, maxNodes: 1, angleRange: [0, 2 * Math.PI] });
+    expect(p.aim.angle).toBeCloseTo(0.6, 12);
+    expect(p.aim.power).toBe(0.8);
+  });
+});
