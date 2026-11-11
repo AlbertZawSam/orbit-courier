@@ -1,0 +1,11 @@
+:root {
+  --void: #0a0e1f;
+  --haze: #2a1b3d;
+  --ivory: #efe8d8;
+  --brass: #c8a35a;
+  --safe: #4fd1c5;
+  --danger: #f0623d;
+  --cargo: #f2c14e;
+}
+html, body { margin: 0; height: 100%; background: var(--void); color: var(--ivory); overflow: hidden; }
+canvas#stage { display: block; width: 100vw; height: 100vh; }
