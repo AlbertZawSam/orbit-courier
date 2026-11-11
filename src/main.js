@@ -20,6 +20,10 @@ import { createStorage } from './state/storage.js';
 import { createTelemetry } from './state/telemetry.js';
 import { createSettings } from './state/settings.js';
 import { createQualityLoop } from './render/qualityLoop.js';
+import { createFraming } from './render/framing.js';
+import { createPlanEvents } from './game/planEvents.js';
+import { createAudio } from './audio/index.js';
+import { audioFrame } from './audio/state.js';
 import { installDebugHook } from './game/debugHook.js';
 import { prefersReducedMotion } from './a11y/motion.js';
 import { createBus } from './state/events.js';
@@ -57,15 +61,23 @@ const effects = createEffects(stage.scene, fxBus, { reducedMotion: reduced });
 fxBus.on('crash', () => cam.rig.shake(1));
 fxBus.on('node_burn', () => cam.rig.shake(0.15));
 
+// Sound: created on the first gesture (browsers require one), driven by the same fxBus so replays are audible too.
+const audio = createAudio({ bus: fxBus });
+const unlockAudio = () => { audio.unlock(); ['pointerdown', 'keydown'].forEach((t) => window.removeEventListener(t, unlockAudio)); };
+['pointerdown', 'keydown'].forEach((t) => window.addEventListener(t, unlockAudio));
+document.addEventListener('click', (e) => { if (e.target.closest?.('button')) bus.emit('ui_click'); });
+
 let levelIndex = 0, level, sys, pad, bodies, band, plan, slow, controls;
 let phase = 'planning'; // planning | flying | replaying | ended
 let flight = null, pred = null, lastU = 0, sinceReplan = 0;
 let replayFlight = null, replayEnding = false, lastRun = null, lastShow = null;
-let cardTimer = null, runSpec = null, cameraShown = 0;
+let cardTimer = null, runSpec = null, cameraShown = 0, progressAt = 0, fuelLowSent = false;
 const RESULT_DELAY_MS = 1100;
-let prevAim = null, prevNodes = [], slowWasActive = false, slowSpent = 0;
+let slowWasActive = false, slowSpent = 0;
 const t0 = 0; // planning time is frozen; launch windows arrive in stage 27
 
+const planEvents = createPlanEvents({ bus, getPlan: () => plan });
+const framing = createFraming({ camera: stage.camera, cam, getState: () => ({ pred, pad, sys, level, t0 }) });
 const u = () => cam.dist * 0.05;
 const launchSpec = () => ({ angle: plan.aim.angle, power: plan.aim.power * level.launch.maxSpeed, t0 });
 const launchState = () => levelLaunch(level, sys, launchSpec());
@@ -104,12 +116,13 @@ function loadLevel(i) {
   plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange, defaultAim: { angle: Math.atan2(tz - pz0, tx - px0), power: 0.8 } });
   slow = new SlowMo(level.slowMoSeconds);
   controls = createControls({
-    plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(), cycleQuality: () => quality.cycle(),
+    plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(), cycleQuality: () => quality.cycle(), denied: () => bus.emit('ui_error', { reason: 'refused' }),
+    toggleMute: () => { const m = audio.toggleMute(); hud.notice(m ? 'Sound off' : 'Sound on', 2000); },
     cycleCamera, focusTarget, orbit: (dx, dy) => cam.rig.orbitBy(dx, dy), escape: () => { if (phase === 'replaying') endReplay(true); },
     pad: () => { const [x, z] = pad.pos(t0); return { x, z }; },
     nodeTimeDefault: () => (phase === 'flying' ? flight.elapsed + 1 : ((pred.crash ? pred.crash.t : pred.points[pred.points.length - 1].t) - t0) / 2),
   });
-  prevAim = JSON.stringify(plan.aim); prevNodes = [];
+  planEvents.sync();
   coach.resetHints(level.id);
   bus.emit('level_start', { levelId: level.id, mode: 'easy', tutorial: false });
   const m = level.mission;
@@ -134,20 +147,10 @@ function recompute() {
   sinceReplan = 0;
 }
 
-function emitPlanEvents() {
-  const aim = JSON.stringify(plan.aim);
-  if (aim !== prevAim) { prevAim = aim; bus.emit('aim_changed', { angle: plan.aim.angle, power: plan.aim.power }); }
-  const now = plan.nodes;
-  if (now.length > prevNodes.length) bus.emit('node_added', { count: now.length });
-  else if (now.length < prevNodes.length) bus.emit('node_removed', { count: now.length });
-  else if (JSON.stringify(now) !== JSON.stringify(prevNodes)) bus.emit('node_moved', { count: now.length });
-  prevNodes = now.map((n) => ({ t: n.t, dv: [...n.dv] }));
-}
-
 function changed() {
-  emitPlanEvents();
+  planEvents.emit();
   recompute();
-  if (phase === 'planning') fitCamera(false);
+  if (phase === 'planning') framing.fit(false);
   if (phase === 'flying') flight.setNodes(plan.nodes);
   if (phase === 'planning') {
     const [px, pz] = pad.pos(t0);
@@ -161,7 +164,7 @@ function launch() {
   if (phase !== 'planning') return;
   flight = new Flight(sys, launchState(), { t0, mission: level.mission, bus, nodes: plan.nodes });
   phase = 'flying';
-  runSpec = launchSpec();
+  runSpec = launchSpec(); fuelLowSent = false;
   cam.rig.setMode('cinematic');
   probeView.resetTrail(); probeView.hideAim();
   hud.setPhase(phase); hud.message('');
@@ -177,38 +180,11 @@ function reset() {
   card.hide();
   probeView.hide(); probeView.resetTrail(); trajectory.setVisible(true); effects.clear();
   bodies.update(t0);
-  hud.setPhase(phase); changed(); fitCamera(true);
+  hud.setPhase(phase); changed(); framing.fit(true);
 }
 
 function endSlow() {
   if (slowWasActive) { bus.emit('slowmo_end', { seconds: slowSpent }); slowWasActive = false; slowSpent = 0; }
-}
-
-/** Bounds of what the player needs to see while planning: pad, target, and the previewed path up to its end. */
-function previewBounds() {
-  const [px, pz] = pad.pos(t0), [tx, tz] = sys.byId[level.mission.target].pos(t0);
-  const b = { minX: Math.min(px, tx), maxX: Math.max(px, tx), minZ: Math.min(pz, tz), maxZ: Math.max(pz, tz) };
-  let end = pred.delivered?.i ?? pred.crash?.i ?? pred.lost?.i ?? Infinity;
-  const enc = pred.closest[level.mission.target];
-  if (enc) end = Math.min(end, enc.i + 180); // frame the approach to the target, not a long loop after it
-  for (const p of pred.points) {
-    if (p.i > end) break;
-    b.minX = Math.min(b.minX, p.x); b.maxX = Math.max(b.maxX, p.x); b.minZ = Math.min(b.minZ, p.z); b.maxZ = Math.max(b.maxZ, p.z);
-  }
-  return b;
-}
-const corner = new Vector3();
-function boundsInView(b) {
-  for (const [x, z] of [[b.minX, b.minZ], [b.minX, b.maxZ], [b.maxX, b.minZ], [b.maxX, b.maxZ]]) {
-    corner.set(x, 0, z).project(stage.camera);
-    if (Math.abs(corner.x) > 0.8 || corner.y > 0.75 || corner.y < -0.7) return false;
-  }
-  return true;
-}
-/** Keep the previewed path on screen: an exact fit on reset, afterwards only zoom out when the path leaves the view. */
-function fitCamera(reset) {
-  const b = previewBounds();
-  if (reset || !boundsInView(b)) cam.frame(b, reset);
 }
 
 function toggleSlow() {
@@ -223,7 +199,7 @@ function finish(outcome, reason) {
   bus.emit('attempt_end', { outcome, fuelUsed: flight.fuelUsed, seconds: flight.elapsed, closestApproaches: { ...flight.closest } });
   // Show the result after the burst has had a moment to play; the attempt itself is already recorded above.
   const show = outcome === 'delivered'
-    ? (() => { const s = scoreAttempt(level, { outcome: 'delivered', fuelUsed: flight.fuelUsed, seconds: flight.elapsed }); const fuel = flight.fuelUsed, secs = flight.elapsed; return () => card.win({ level, ...s, fuelUsed: fuel, seconds: secs, hasNext: levelIndex + 1 < LIST.length }); })()
+    ? (() => { const s = scoreAttempt(level, { outcome: 'delivered', fuelUsed: flight.fuelUsed, seconds: flight.elapsed }); const fuel = flight.fuelUsed, secs = flight.elapsed; return () => { bus.emit('stars_awarded', { stars: s.stars }); card.win({ level, ...s, fuelUsed: fuel, seconds: secs, hasNext: levelIndex + 1 < LIST.length }); }; })()
     : () => card.lose({ level, reason });
   lastRun = { spec: runSpec, nodes: plan.nodes.map((n) => ({ t: n.t, dv: [...n.dv] })) };
   lastShow = show;
@@ -266,6 +242,7 @@ quality.apply();
 installDebugHook({
   level: () => level, plan: () => plan, changed: () => changed(), launch: () => launch(), replay: () => startReplay(),
   cameraMode: () => cam.mode, state: () => ({ phase, t: (replayFlight ?? flight)?.elapsed ?? 0 }),
+  audio: () => ({ ready: audio.engine.ready, muted: audio.engine.muted, level: audio.engine.level(), voices: audio.engine.pool.count }),
 });
 const fromHash = LIST.findIndex((l) => l.id === location.hash.slice(1));
 loadLevel(fromHash >= 0 ? fromHash : 0);
@@ -294,12 +271,19 @@ stage.renderer.setAnimationLoop((now) => {
     bodies.update(live.t);
     probeView.place(live.probe.x, live.probe.z, live.probe.vx, live.probe.vz, relSpeed(live.probe, live.t), now / 1000);
   } else hud.set({ slow: `${slow.left.toFixed(1)} s` });
+  const playing = !!live && (phase === 'flying' || phase === 'replaying');
+  if (playing) {
+    const fuelFraction = level.fuel > 0 ? Math.max(0, 1 - live.fuelUsed / level.fuel) : 1;
+    if (!fuelLowSent && phase === 'flying' && level.fuel > 0 && live.fuelUsed > 0 && fuelFraction < 0.2) { fuelLowSent = true; bus.emit('fuel_low', { fraction: fuelFraction }); }
+    if (phase === 'flying' && now - progressAt > 250) { progressAt = now; bus.emit('mission_progress', { progress: live.missionState?.progress ?? 0 }); }
+    audio.update({ playing, frame: audioFrame(sys, live.probe, live.t, level.mission.target), fuelFraction, tank: level.fuel, progress: live.missionState?.progress ?? 0, target: null });
+  } else audio.update({ playing: false, frame: null, fuelFraction: 1, tank: level.fuel, progress: 0, target: null });
   const tNow = live ? live.t : t0;
   cam.update(dt, {
     probe: live ? live.probe : null, slow: phase === 'flying' && slow.active,
     focus: (id) => { const b = sys.byId[id]; if (!b) return null; const [x, z] = b.pos(tNow); return { x, z, radius: b.radius }; },
   });
-  if (now - cameraShown > 400) { cameraShown = now; hud.set({ camera: cam.mode }); }
+  if (now - cameraShown > 400) { cameraShown = now; hud.set({ camera: cam.mode, sound: audio.engine.ready ? (audio.engine.muted ? 'off' : 'on') : 'starts on click' }); }
   sky.update(stage.camera, now / 1000);
   const [bx, bz] = sys.byId[level.mission.target].pos(tNow);
   band.update(bx, bz, now / 1000, live?.missionState?.progress ?? 0);

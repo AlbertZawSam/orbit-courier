@@ -13,6 +13,7 @@ export function installDebugHook(api) {
     launch: () => api.launch(),
     replay: () => api.replay(),
     cameraMode: () => api.cameraMode(),
+    audio: () => api.audio(),
     state: () => api.state(),
   };
 }

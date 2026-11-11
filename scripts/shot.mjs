@@ -35,6 +35,20 @@ await waitSim(5.55); await page.waitForTimeout(250); await shot('l3-burn');
 // 4. a crash burst
 await open('L1'); await page.evaluate(() => window.__orbit.launch());
 await page.waitForFunction(() => window.__orbit.state().phase === 'ended', null, { timeout: 60000 }); await page.waitForTimeout(350); await shot('l1-crash');
+// 5. audio smoke test: nothing before a gesture, then a real AudioContext with non-silent output during a launch
+await open('L1');
+console.log('audio before any gesture:', JSON.stringify(await page.evaluate(() => window.__orbit.audio())));
+await page.keyboard.press('Shift'); await page.waitForTimeout(400);
+console.log('audio after a key press :', JSON.stringify(await page.evaluate(() => window.__orbit.audio())));
+await page.evaluate(() => window.__orbit.applySolution()); await page.waitForTimeout(300);
+await page.evaluate(() => window.__orbit.launch());
+const levels = [];
+for (let k = 0; k < 24; k++) { await page.waitForTimeout(150); levels.push(await page.evaluate(() => window.__orbit.audio())); }
+const rms = levels.map((l) => l.level);
+console.log(`audio level during launch: max ${Math.max(...rms).toFixed(4)}, mean ${(rms.reduce((a, b) => a + b, 0) / rms.length).toFixed(4)}, max voices ${Math.max(...levels.map((l) => l.voices))}`);
+await page.keyboard.press('m'); await page.waitForTimeout(400);
+console.log('after M:', JSON.stringify(await page.evaluate(() => window.__orbit.audio())));
+
 // 5. camera modes: cinematic launch, focus, and the replay camera
 await open('L1'); await page.evaluate(() => window.__orbit.applySolution()); await page.waitForTimeout(400);
 await page.evaluate(() => window.__orbit.launch()); await page.waitForTimeout(150);

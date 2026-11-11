@@ -9,14 +9,14 @@ import { sandbox } from './fixtures/sandbox.js';
 function rig(phase = 'planning') {
   const sys = Object.assign(buildSystem(sandbox.bodies.map((b) => ({ ...b }))), { bounds: sandbox.bounds });
   const plan = new Plan({ fuel: 2, maxNodes: 3 });
-  const calls = { changed: 0, launch: 0, reset: 0, slow: 0, quality: 0, camera: 0, focus: 0, escape: 0, orbits: [] };
+  const calls = { changed: 0, launch: 0, reset: 0, slow: 0, quality: 0, camera: 0, focus: 0, escape: 0, mute: 0, denied: 0, orbits: [] };
   let pred;
   const redo = () => { pred = predict(sys, launchProbe(sys.byId.home, sys.byId, { angle: plan.aim.angle, power: plan.aim.power * 7, t0: 0 }), { nodes: plan.nodes }); };
   redo();
   const controls = createControls({
     plan, phase: () => phase, pred: () => pred, u: () => 1, t0: () => 0,
     changed: () => { calls.changed++; redo(); }, launch: () => calls.launch++, reset: () => calls.reset++, toggleSlow: () => calls.slow++, toggleCoach: () => {}, cycleQuality: () => calls.quality++,
-    cycleCamera: () => calls.camera++, focusTarget: () => calls.focus++, escape: () => calls.escape++, orbit: (dx, dy) => calls.orbits.push([dx, dy]),
+    cycleCamera: () => calls.camera++, toggleMute: () => calls.mute++, denied: () => calls.denied++, focusTarget: () => calls.focus++, escape: () => calls.escape++, orbit: (dx, dy) => calls.orbits.push([dx, dy]),
     pad: () => ({ x: 30, z: 0 }), nodeTimeDefault: () => 2,
   });
   return { plan, controls, calls, get pred() { return pred; } };
@@ -81,5 +81,16 @@ describe('controls', () => {
     planning.controls.onDown([30, 5], [0, 0]);
     expect(planning.calls.orbits).toEqual([]);
     expect(planning.plan.aim.angle).toBeCloseTo(Math.PI / 2, 9);
+  });
+  it('M toggles mute; the node that does not fit is reported as denied', () => {
+    const r = rig();
+    expect(r.controls.onKey(key('m'))).toBe(true);
+    expect(r.calls.mute).toBe(1);
+    for (let i = 0; i < 3; i++) r.controls.onKey(key('n'));
+    expect(r.plan.nodes.length).toBe(3);
+    expect(r.calls.denied).toBe(0);
+    r.controls.onKey(key('n'));                 // the rig allows 3 nodes: the 4th is refused
+    expect(r.plan.nodes.length).toBe(3);
+    expect(r.calls.denied).toBe(1);
   });
 });
