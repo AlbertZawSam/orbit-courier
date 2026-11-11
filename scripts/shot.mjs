@@ -61,6 +61,17 @@ const off = []; for (let k = 0; k < 6; k++) { await page.waitForTimeout(120); of
 console.log(`music switched off in the popover: max ${Math.max(...off).toFixed(4)}`);
 await page.click('#settings [data-k="close"]');
 
+// 5a. Low quality must still look good; reduced motion must drop the cinematic camera
+await open('L1'); await page.keyboard.press('q'); await page.keyboard.press('q'); await page.waitForTimeout(800);
+console.log('quality after Q Q:', await page.evaluate(() => document.querySelector('[data-k="quality"]').textContent));
+await page.evaluate(() => window.__orbit.applySolution()); await page.waitForTimeout(500); await shot('l1-low');
+await page.emulateMedia({ reducedMotion: 'reduce' });
+await open('L1'); await page.evaluate(() => window.__orbit.applySolution()); await page.waitForTimeout(300);
+await page.evaluate(() => window.__orbit.launch()); await page.waitForTimeout(200);
+console.log('reduced motion: camera right after launch =', await page.evaluate(() => window.__orbit.cameraMode()), '(expected follow, not cinematic)');
+await waitSim(1.0); await shot('l1-reduced');
+await page.emulateMedia({ reducedMotion: 'no-preference' });
+
 // 5. camera modes: cinematic launch, focus, and the replay camera
 await open('L1'); await page.evaluate(() => window.__orbit.applySolution()); await page.waitForTimeout(400);
 await page.evaluate(() => window.__orbit.launch()); await page.waitForTimeout(150);

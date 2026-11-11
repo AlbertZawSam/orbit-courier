@@ -5,6 +5,8 @@ import { createAmbience } from '../src/audio/ambience.js';
 import { sfx } from '../src/audio/sfx.js';
 import { EVENT_SOUNDS, ALL_EVENTS, wireAudio } from '../src/audio/events.js';
 import { createAudio } from '../src/audio/index.js';
+import { createMusic } from '../src/audio/music.js';
+import * as T from '../src/audio/tension.js';
 import { audioFrame } from '../src/audio/state.js';
 import { createBus } from '../src/state/events.js';
 import { buildSystem } from '../src/sim/rails.js';
@@ -30,6 +32,38 @@ describe('pitch mapping stays in scale', () => {
   });
   it('quantizing snaps to the nearest scale note and is idempotent', () => {
     for (let f = 60; f < 4000; f *= 1.07) { const q = dsp.quantizeHz(f); expect(dsp.inScale(q)).toBe(true); expect(dsp.quantizeHz(q)).toBeCloseTo(q, 6); }
+  });
+});
+
+describe('everything follows the tier key', () => {
+  const ROOTS = [40, 43, 45, 47, 50];
+  it('hum, ping, tick, shimmer and the delivery chord are in the scale of whatever key is set', () => {
+    for (const root of ROOTS) {
+      for (const k of KINDS) for (const a of ACCELS) expect(dsp.inScale(dsp.humFreq(a, k, root), root), `${root} ${k} ${a}`).toBe(true);
+      for (const d of [0, 2, 9]) expect(dsp.inScale(dsp.pingFreq(d, root), root)).toBe(true);
+      for (const v of [0, 0.5, 1.5]) expect(dsp.inScale(dsp.nodeTickFreq(v, root), root)).toBe(true);
+      for (let p = 0; p <= 1; p += 0.1) expect(dsp.inScale(dsp.shimmerFreq(p, root), root)).toBe(true);
+      const { arp, bells } = dsp.deliveryNotes(3, root);
+      for (const f of [...arp, ...bells]) expect(dsp.inScale(f, root)).toBe(true);
+    }
+    // D and A pentatonic share four notes, but a D-key hum is not always an A-key note
+    expect(ACCELS.some((a) => !dsp.inScale(dsp.humFreq(a, 'rocky', 50), 45))).toBe(true);
+  });
+  it('the default key is unchanged, and transposing keeps the arpeggio shape', () => {
+    expect(dsp.humFreq(1, 'rocky')).toBe(dsp.humFreq(1, 'rocky', dsp.ROOT_MIDI));
+    const a = dsp.deliveryNotes(2, 45).arp, b = dsp.deliveryNotes(2, 50).arp;
+    a.forEach((f, i) => expect(b[i] / f).toBeCloseTo(2 ** (5 / 12), 9));
+  });
+  it('the music sets the engine key from the tier and the live layers use it', () => {
+    const { ctx, engine } = ready(); const m = createMusic(engine), amb = createAmbience(engine);
+    expect(engine.key).toBe(45);
+    m.setTier('inner');
+    expect(engine.key).toBe(T.tierKey('inner'));
+    amb.update({ playing: true, frame: { hum: [{ accel: 2, kind: 'rocky' }], doppler: null, target: null }, fuelFraction: 1, tank: 1, progress: 0.4, target: null });
+    expect(dsp.inScale(amb.layers.hum[0].a.frequency.value, 50)).toBe(true);
+    expect(dsp.inScale(amb.layers.shimmer.s1.frequency.value, 50)).toBe(true);
+    sfx.tick(engine, 0.7);
+    expect(dsp.inScale(ctx.all('osc').at(-1).frequency.calls[0][1], 50)).toBe(true);
   });
 });
 
@@ -332,6 +366,12 @@ describe('events drive sounds', () => {
     expect(tickOsc.type).toBe('triangle'); expect(dsp.inScale(tickOsc.frequency.calls[0][1])).toBe(true);
     tick(); bus.emit('node_moved', { atLimit: true });
     expect(ctx.all('osc').at(-1).type).toBe('sawtooth');
+  });
+  it('throttles are per engine: one engine\'s blips never block another\'s', () => {
+    const one = rig(), two = rig(); one.audio.unlock(); two.audio.unlock(); tick();
+    one.bus.emit('coach_message'); two.bus.emit('coach_message');
+    expect(one.ctx.all('osc').length).toBe(1);
+    expect(two.ctx.all('osc').length).toBe(1);
   });
   it('coach blips are throttled to one per 300 ms', () => {
     const { ctx, bus, audio } = rig(); audio.unlock(); tick();

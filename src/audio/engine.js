@@ -30,7 +30,7 @@ export class VoicePool {
 export function createAudioEngine({ createContext = defaultContext, maxVoices = 24 } = {}) {
   let ctx = null, master = null, dilation = null, analyser = null, noise = null;
   const buses = {}, pool = new VoicePool(maxVoices);
-  let muted = false, volume = 0.8, slow = false, resumed = Promise.resolve();
+  let muted = false, volume = 0.8, slow = false, resumed = Promise.resolve(), key = 45;
   const busLevels = {}; // wanted bus gains, remembered so settings made before the first gesture still apply
 
   function build() {
@@ -97,6 +97,9 @@ export function createAudioEngine({ createContext = defaultContext, maxVoices = 
       if (ctx) dilation.frequency.setTargetAtTime(slow ? cutoffs.on : cutoffs.off, ctx.currentTime, 0.12);
     },
     get slow() { return slow; },
+    /** The musical key (MIDI root) every pitch mapping snaps to; the music sets it from the tier. */
+    get key() { return key; },
+    setKey(root) { key = root; },
     /** RMS level (0..1) of the master output right now, for diagnostics. */
     level() {
       if (!analyser) return 0;

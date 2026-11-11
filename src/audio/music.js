@@ -39,7 +39,7 @@ export function createMusic(engine) {
 
   return {
     /** Choose the drone key for a tier. Crossfades if it changes. */
-    setTier(t) { tier = t; ensurePad(); },
+    setTier(t) { tier = t; engine.setKey(tierKey(t)); ensurePad(); },
     /** Reduce sound turns the arpeggio off (the pad stays). */
     setArpeggio(on) { arps = !!on; },
     /** Cap tension (Flight School keeps the music calm). */

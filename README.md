@@ -8,7 +8,7 @@ A 3D space-delivery game. Launch a small probe from a planet, plan burns on a li
 - **Procedural everything.** No image, audio, or font files: graphics are geometry, shaders, and canvas textures; sound is synthesized with Web Audio.
 - **Preview equals flight.** The trajectory preview and the live flight call the same `step` function, and a test enforces it.
 
-> **Status: early development.** Session 1 is done (playable core with three levels and the offline Navigator coach). Session 2 has started: the render pipeline with bloom and quality tiers is in. The simulation, levels, graphics, audio, Flight School tutorial, and Navigator are being built in the stages listed in [CLAUDE.md](CLAUDE.md). Sections below describe the target design from [AGENTS.md](AGENTS.md); the roadmap table shows what exists today.
+> **Status: early development.** Sessions 1 and 2 are done: a playable core with three levels and the offline Navigator coach, plus procedural graphics and reactive audio. Session 3 (more missions and hazards, levels L4-L12, progression, and the Flight School tutorial) is next. The simulation, levels, graphics, audio, Flight School tutorial, and Navigator are being built in the stages listed in [CLAUDE.md](CLAUDE.md). Sections below describe the target design from [AGENTS.md](AGENTS.md); the roadmap table shows what exists today.
 
 ## Quick start
 
@@ -32,6 +32,23 @@ To play the built game, open `dist/index.html` directly (double-click). It runs 
 | `npm run build` | `kb`, then `vite build`, then `check-offline` |
 | `npm run verify` | `test`, `levels`, `build` |
 | `npm run shot` | Optional dev tool: screenshots of the built game into `shots/` plus a runtime smoke test (needs `npx playwright install chromium`). Open `dist/index.html#gallery` for the renderer test bench |
+
+## Controls
+
+| Input | Action |
+|---|---|
+| Drag from the launch planet | Aim (direction = angle, distance = power) |
+| Arrow keys (Shift = fine) | Aim by keyboard |
+| Enter or Space | Launch |
+| Click the path, or `N` | Add a burn node |
+| Drag a node's handles, or `+` `-` `,` `.` | Set prograde / radial delta-v |
+| `Tab` / `[` `]`, `Delete` | Select a node, remove it |
+| `S` | Slow motion (flight) |
+| `C`, `F`, drag in flight, wheel | Cycle camera, focus the target, orbit, zoom |
+| `H` | Navigator (the coach) |
+| `M`, Sound button | Mute, sound settings |
+| `Q` | Graphics quality: auto, low, medium, high |
+| `R`, `Esc` | Retry, stop a replay |
 
 ## How the game works
 
@@ -114,7 +131,7 @@ Work proceeds in stages; each stage ends green on `npm test`, and each session e
 | Session | Focus | State |
 |---|---|---|
 | 1 | Playable core and coach: sim, 3D scene, burn nodes, L1-L3, Navigator | Done and verified |
-| 2 | Baseline graphics and audio | In progress: Stages 7-12 done (bloom, quality tiers, procedural planets and sky, trajectory ribbon, probe, effects, camera modes and replay, core audio, generative music and sound settings) |
+| 2 | Baseline graphics and audio | Done and verified |
 | 3 | 12 levels, progression, Flight School T1-T4, coach completion | Not started |
 | 4 | Premium graphics and audio (eclipses, lensing, spatial sound, orchestra) | Not started |
 | 5 | Window map, planner, tugs, relay, flight report, audio-only mode, Flight School T5-T6 | Not started |

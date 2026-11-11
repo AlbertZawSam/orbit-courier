@@ -27,12 +27,12 @@ export function inScale(freq, root = ROOT_MIDI) {
 /** Gravity hum: heavy bodies drone low, small ones sing high. */
 export const HUM_BASE = { star: 33, gas: 36, rocky: 45, ice: 52, moon: 57, station: 60 };
 /** Pitch rises with the log of the pull (about 8 semitones per decade above 0.05), quantized to the scale. */
-export function humMidi(accel, kind) {
+export function humMidi(accel, kind, root = ROOT_MIDI) {
   const base = HUM_BASE[kind] ?? 52;
   const decades = clamp(Math.log10(Math.max(accel, 1e-4) / 0.05), 0, 2.5);
-  return quantizeMidi(base + decades * 8);
+  return quantizeMidi(base + decades * 8, root);
 }
-export const humFreq = (accel, kind) => midiToHz(humMidi(accel, kind));
+export const humFreq = (accel, kind, root = ROOT_MIDI) => midiToHz(humMidi(accel, kind, root));
 /** Loudness by proximity: 0 when far, rising smoothly with the pull. */
 export const humGain = (accel) => clamp(Math.log10(1 + Math.max(0, accel) * 6) / 1.3, 0, 1);
 
@@ -49,10 +49,10 @@ export function dopplerGain(speed, surfaceDist) {
 
 /** Target beacon: pings faster and higher as the probe closes in. */
 export const pingInterval = (d) => clamp(0.22 + d * 0.09, 0.22, 2.2);
-export const pingFreq = (d) => quantizeHz(330 + 900 / (1 + Math.max(0, d) / 4));
+export const pingFreq = (d, root = ROOT_MIDI) => quantizeHz(330 + 900 / (1 + Math.max(0, d) / 4), root);
 
 /** Node tick pitch follows the size of the burn. */
-export const nodeTickFreq = (dv) => quantizeHz(500 + 1500 * clamp(dv / 1.5, 0, 1));
+export const nodeTickFreq = (dv, root = ROOT_MIDI) => quantizeHz(500 + 1500 * clamp(dv / 1.5, 0, 1), root);
 
 /** Thruster envelope: quick attack, steady, soft release. Returns 0..1. */
 export function thrustEnvelope(age, duration, attack = 0.05, release = 0.2) {
@@ -64,12 +64,13 @@ export function thrustEnvelope(age, duration, attack = 0.05, release = 0.2) {
 export const thrustCutoff = (level) => 300 + 2200 * clamp(level, 0, 1);
 
 /** Orbit-lock shimmer climbs with progress through the hold. */
-export const shimmerFreq = (progress) => quantizeHz(midiToHz(57 + 12 * clamp(progress, 0, 1)));
+export const shimmerFreq = (progress, root = ROOT_MIDI) => quantizeHz(midiToHz(57 + 12 * clamp(progress, 0, 1)), root);
 
 /** Delivery: a rising pentatonic arpeggio, then one bell per star. */
-export function deliveryNotes(stars) {
-  const arp = [0, 2, 4, 7, 9].map((s) => midiToHz(57 + s));
-  const bells = [0, 4, 7].slice(0, clamp(Math.round(stars), 0, 3)).map((s) => midiToHz(81 + s));
+export function deliveryNotes(stars, root = ROOT_MIDI) {
+  const shift = root - ROOT_MIDI; // transpose into the current key
+  const arp = [0, 2, 4, 7, 9].map((s) => midiToHz(57 + shift + s));
+  const bells = [0, 4, 7].slice(0, clamp(Math.round(stars), 0, 3)).map((s) => midiToHz(81 + shift + s));
   return { arp, bells };
 }
 

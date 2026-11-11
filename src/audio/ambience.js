@@ -64,7 +64,7 @@ export function createAmbience(engine) {
       hum.forEach((h, k) => {
         const body = f?.hum[k];
         if (!body) { glide(h.g.gain, 0, now); return; }
-        const fr = humFreq(body.accel, body.kind);
+        const fr = humFreq(body.accel, body.kind, engine.key);
         glide(h.a.frequency, fr, now, 0.15); glide(h.c.frequency, fr * 2, now, 0.15);
         glide(h.g.gain, humGain(body.accel) * (k === 0 ? 0.11 : 0.06), now, 0.2);
       });
@@ -77,7 +77,7 @@ export function createAmbience(engine) {
 
       const p = s.playing ? s.progress : 0;
       glide(shimmer.g.gain, p > 0.001 ? 0.03 + 0.05 * p : 0, now, 0.25);
-      if (p > 0.001) { glide(shimmer.s1.frequency, shimmerFreq(p), now, 0.2); glide(shimmer.s2.frequency, shimmerFreq(p) * 1.5, now, 0.2); }
+      if (p > 0.001) { glide(shimmer.s1.frequency, shimmerFreq(p, engine.key), now, 0.2); glide(shimmer.s2.frequency, shimmerFreq(p, engine.key) * 1.5, now, 0.2); }
 
       if (pingOn && s.playing && f?.target && now >= nextPing) { sfx.ping(engine, f.target.r); nextPing = now + pingInterval(f.target.r); }
       if (s.playing && lowFuel(s.fuelFraction, s.tank) && now >= nextFuelPulse) { sfx.lowFuel(engine); nextFuelPulse = now + 1.6; }
