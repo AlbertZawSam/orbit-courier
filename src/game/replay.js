@@ -1,11 +1,12 @@
 import { buildSystem } from '../sim/rails.js';
 import { launchProbe } from '../sim/probe.js';
+import { createHazards } from '../sim/hazards.js';
 import { Flight } from './flight.js';
 
 /** Fresh simulation system for a level (bodies are copied so levels stay plain data). */
 export function buildLevelSystem(level) {
   const sys = buildSystem(level.system.bodies.map((b) => ({ ...b })));
-  return Object.assign(sys, { hazards: [], bounds: level.bounds ?? 120 });
+  return Object.assign(sys, { hazards: createHazards(level.hazards, sys.byId), bounds: level.bounds ?? 120 });
 }
 
 /** The probe state a launch produces on this level. */

@@ -83,7 +83,7 @@ const framing = createFraming({ camera: stage.camera, cam, getState: () => ({ pr
 const u = () => cam.dist * 0.05;
 const launchSpec = () => ({ angle: plan.aim.angle, power: plan.aim.power * level.launch.maxSpeed, t0 });
 const launchState = () => levelLaunch(level, sys, launchSpec());
-const bodyName = (id) => sys.byId[id].name ?? id;
+const bodyName = (id) => sys.byId[id]?.name ?? (id === 'asteroid' ? 'an asteroid' : id);
 
 const coach = createCoach({ chunks: kb, getContext: () => ({ level, sys, attempts: telemetry.attempts(), skill: 'beginner' }) });
 const coachPanel = createCoachPanel(document.getElementById('coach'), { coach, bus });

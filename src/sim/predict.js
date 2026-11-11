@@ -59,7 +59,7 @@ export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS, no
     points.push({ i: i + 1, t, x: p.x, z: p.z });
     note(p, t, i + 1);
     if (crash || lost) continue; // ghost mode: already ended, keep drawing
-    const out = detectOutcome(p, t, bodies, bounds, { landing, byId });
+    const out = detectOutcome(p, t, bodies, bounds, { landing, byId, hazards: sys.hazards ?? [] });
     if (out?.type === 'landed') { delivered = { t, i: i + 1, x: p.x, z: p.z, how: 'landed' }; break; }
     if (out?.type === 'crash') { crash = { bodyId: out.bodyId, t, i: i + 1, x: out.x, z: out.z }; if (!ghost) break; }
     else if (out?.type === 'lost') { lost = { t, i: i + 1 }; if (!ghost) break; }

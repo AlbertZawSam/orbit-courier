@@ -43,7 +43,7 @@ export class Flight {
         const [bx, bz] = b.pos(t), d = Math.hypot(this.probe.x - bx, this.probe.z - bz);
         if (!(d >= this.closest[b.id])) this.closest[b.id] = d;
       }
-      const out = detectOutcome(this.probe, t, this.sys.bodies, this.sys.bounds ?? Infinity, { landing: this.landing, byId: this.sys.byId });
+      const out = detectOutcome(this.probe, t, this.sys.bodies, this.sys.bounds ?? Infinity, { landing: this.landing, byId: this.sys.byId, hazards: this.sys.hazards ?? [] });
       if (out?.type === 'landed') {
         this.missionState = { done: true, progress: 1, altitude: 0, speed: out.speed };
         this.outcome = { type: 'delivered', how: 'landed', speed: out.speed, t };
