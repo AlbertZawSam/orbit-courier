@@ -13,6 +13,9 @@ import { createCoach } from './coach/coach.js';
 import kb from './coach/kb.generated.json';
 import { createStorage } from './state/storage.js';
 import { createTelemetry } from './state/telemetry.js';
+import { createSettings } from './state/settings.js';
+import { AutoQuality, tierSettings, nextChoice } from './render/quality.js';
+import { prefersReducedMotion } from './a11y/motion.js';
 import { createBus } from './state/events.js';
 import { velAt } from './sim/rails.js';
 import { dominantBody } from './sim/probe.js';
@@ -25,16 +28,21 @@ import { buildLevelSystem, levelLaunch } from './game/replay.js';
 import { LEVELS } from './levels/levels.js';
 
 const bus = createBus();
-const telemetry = createTelemetry({ bus, storage: createStorage('') });
+const storage = createStorage('');
+const settings = createSettings(storage);
+const telemetry = createTelemetry({ bus, storage });
 const stage = createStage(document.getElementById('stage'));
 const cam = createCamera(stage.camera);
 const trajectory = createTrajectory(stage.scene);
-const probeView = createProbeView(stage.scene);
+const probeView = createProbeView(stage.scene, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
 const nodeView = createNodeView(stage.scene);
 
 let levelIndex = 0, level, sys, pad, bodies, plan, slow, controls;
 let phase = 'planning'; // planning | flying | ended
 let flight = null, pred = null, lastU = 0, sinceReplan = 0;
+let auto = new AutoQuality('high');
+let tierName = settings.get('quality') === 'auto' ? 'high' : settings.get('quality');
+let frameMs = 16, qualityShown = 0;
 let prevAim = null, prevNodes = [], slowWasActive = false, slowSpent = 0;
 const t0 = 0; // planning time is frozen; launch windows arrive in stage 27
 
@@ -50,6 +58,15 @@ const card = createResultCard(document.getElementById('card'), {
   onRetry: () => reset(), onNext: () => loadLevel(levelIndex + 1),
   onAsk: () => { coachPanel.open(); coachPanel.ask('What went wrong?'); },
 });
+
+function applyQuality() { stage.post.apply(tierSettings(tierName)); }
+function cycleQuality() {
+  const choice = nextChoice(settings.get('quality'));
+  settings.set('quality', choice);
+  if (choice === 'auto') { auto = new AutoQuality('high'); tierName = 'high'; } else tierName = choice;
+  applyQuality();
+  hud.notice(`Graphics quality: ${choice}${choice === 'auto' ? ' (adjusts to your device)' : ''}`, 3000);
+}
 
 function relSpeed(p, t) {
   const dom = dominantBody(p.x, p.z, t, sys.bodies), [vx, vz] = velAt(dom, t, sys.byId);
@@ -67,7 +84,7 @@ function loadLevel(i) {
   plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange });
   slow = new SlowMo(level.slowMoSeconds);
   controls = createControls({
-    plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(),
+    plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(), cycleQuality,
     pad: () => { const [x, z] = pad.pos(t0); return { x, z }; },
     nodeTimeDefault: () => (phase === 'flying' ? flight.elapsed + 1 : (pred.points[pred.points.length - 1].t - t0) / 2),
   });
@@ -167,12 +184,20 @@ createInput({
   controls: { onDown: (p) => controls.onDown(p), onKey: (e) => controls.onKey(e) },
 });
 
+applyQuality();
 const fromHash = LEVELS.findIndex((l) => l.id === location.hash.slice(1));
 loadLevel(fromHash >= 0 ? fromHash : 0);
 
 let last = performance.now();
 stage.renderer.setAnimationLoop((now) => {
-  const dt = Math.min(0.1, (now - last) / 1000); last = now;
+  const rawMs = now - last;
+  const dt = Math.min(0.1, rawMs / 1000); last = now;
+  if (rawMs > 0 && rawMs < 250) frameMs += (rawMs - frameMs) * 0.05;
+  if (settings.get('quality') === 'auto') {
+    const drop = auto.push(rawMs);
+    if (drop) { tierName = drop.to; applyQuality(); hud.notice(`Lowered graphics to ${drop.to} to keep play smooth. Press Q to choose a quality.`); }
+  }
+  if (now - qualityShown > 500) { qualityShown = now; hud.set({ quality: `${settings.get('quality')}${settings.get('quality') === 'auto' ? ` (${tierName})` : ''}, ${frameMs.toFixed(1)} ms` }); }
   if (flight) {
     if (phase === 'flying') {
       const scale = slow.tick(dt);

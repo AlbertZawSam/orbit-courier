@@ -16,7 +16,7 @@ export function createBodies(scene, bodies) {
   const meshes = {};
   for (const b of bodies) {
     const look = LOOK[b.kind] ?? LOOK.moon;
-    const mat = new THREE.MeshStandardMaterial({ color: look.color, roughness: 0.9, metalness: 0, emissive: look.emissive ?? 0x000000 });
+    const mat = new THREE.MeshStandardMaterial({ color: look.color, roughness: 0.9, metalness: 0, emissive: look.emissive ?? 0x000000, emissiveIntensity: look.emissive ? 2.2 : 1 });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(b.radius, 32, 20), mat);
     mesh.name = b.id;
     group.add(mesh);

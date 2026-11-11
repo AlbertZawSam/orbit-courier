@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { createPost } from './post.js';
 
 export const COLORS = { void: 0x0a0e1f, ivory: 0xefe8d8, brass: 0xc8a35a, safe: 0x4fd1c5, danger: 0xf0623d, cargo: 0xf2c14e };
 
@@ -13,15 +14,17 @@ export function createStage(canvas) {
   scene.add(new THREE.AmbientLight(0x6a5a8a, 0.55));
   const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
 
+  const post = createPost(renderer, scene, camera);
   const resize = () => {
     const w = window.innerWidth, h = window.innerHeight;
     renderer.setSize(w, h, false);
+    post.setSize(w, h);
     camera.aspect = w / h;
     camera.updateProjectionMatrix();
   };
   window.addEventListener('resize', resize);
   resize();
-  return { renderer, scene, camera, render: () => renderer.render(scene, camera) };
+  return { renderer, scene, camera, post, render: () => post.render() };
 }
 
 /** Damped follow camera looking mostly down at the sim plane. */

@@ -9,13 +9,13 @@ import { sandbox } from './fixtures/sandbox.js';
 function rig(phase = 'planning') {
   const sys = Object.assign(buildSystem(sandbox.bodies.map((b) => ({ ...b }))), { bounds: sandbox.bounds });
   const plan = new Plan({ fuel: 2, maxNodes: 3 });
-  const calls = { changed: 0, launch: 0, reset: 0, slow: 0 };
+  const calls = { changed: 0, launch: 0, reset: 0, slow: 0, quality: 0 };
   let pred;
   const redo = () => { pred = predict(sys, launchProbe(sys.byId.home, sys.byId, { angle: plan.aim.angle, power: plan.aim.power * 7, t0: 0 }), { nodes: plan.nodes }); };
   redo();
   const controls = createControls({
     plan, phase: () => phase, pred: () => pred, u: () => 1, t0: () => 0,
-    changed: () => { calls.changed++; redo(); }, launch: () => calls.launch++, reset: () => calls.reset++, toggleSlow: () => calls.slow++,
+    changed: () => { calls.changed++; redo(); }, launch: () => calls.launch++, reset: () => calls.reset++, toggleSlow: () => calls.slow++, toggleCoach: () => {}, cycleQuality: () => calls.quality++,
     pad: () => ({ x: 30, z: 0 }), nodeTimeDefault: () => 2,
   });
   return { plan, controls, calls, get pred() { return pred; } };

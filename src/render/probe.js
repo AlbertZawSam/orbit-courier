@@ -4,7 +4,7 @@ import { COLORS } from './scene.js';
 const MAX_TRAIL = 4000;
 
 /** Probe mesh, a fading-free trail line, and the aim arrow shown while planning. */
-export function createProbeView(scene) {
+export function createProbeView(scene, { reducedMotion = () => false } = {}) {
   const probe = new THREE.Mesh(new THREE.OctahedronGeometry(0.22), new THREE.MeshStandardMaterial({ color: COLORS.cargo, emissive: 0x8a6a10, roughness: 0.4 }));
   probe.visible = false;
   scene.add(probe);
@@ -28,7 +28,7 @@ export function createProbeView(scene) {
     place(x, z) {
       probe.visible = true;
       probe.position.set(x, 0, z);
-      probe.rotation.y += 0.05;
+      if (!reducedMotion()) probe.rotation.y += 0.05;
       if (n < MAX_TRAIL) {
         trailPos.set([x, 0, z], n * 3); n++;
         trailGeo.setDrawRange(0, n);
