@@ -8,6 +8,7 @@ import { createNodeView } from './render/nodes.js';
 import { createLabels } from './render/labels.js';
 import { createTargetBand } from './render/band.js';
 import { createEffects } from './render/effects.js';
+import { MODES_BY_PHASE } from './render/cameraRig.js';
 import { createInput } from './input/input.js';
 import { createControls, AIM_RANGE } from './input/controls.js';
 import { createHud } from './ui/hud.js';
@@ -18,7 +19,8 @@ import kb from './coach/kb.generated.json';
 import { createStorage } from './state/storage.js';
 import { createTelemetry } from './state/telemetry.js';
 import { createSettings } from './state/settings.js';
-import { AutoQuality, tierSettings, nextChoice } from './render/quality.js';
+import { createQualityLoop } from './render/qualityLoop.js';
+import { installDebugHook } from './game/debugHook.js';
 import { prefersReducedMotion } from './a11y/motion.js';
 import { createBus } from './state/events.js';
 import { velAt } from './sim/rails.js';
@@ -40,22 +42,26 @@ const storage = createStorage('');
 const settings = createSettings(storage);
 const telemetry = createTelemetry({ bus, storage });
 const stage = createStage(document.getElementById('stage'));
-const cam = createCamera(stage.camera);
+const reduced = () => prefersReducedMotion(settings.get('reducedMotion'));
+const cam = createCamera(stage.camera, { reducedMotion: reduced });
 const sky = createSky(stage.scene, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
 const labels = createLabels(document.getElementById('labels'), stage.camera, new Vector3());
 const trajectory = createTrajectory(stage.scene, { labels });
 const probeView = createProbeView(stage.scene, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
 const nodeView = createNodeView(stage.scene);
-const reduced = () => prefersReducedMotion(settings.get('reducedMotion'));
-const effects = createEffects(stage.scene, bus, { reducedMotion: reduced });
+// Visual effects and camera shake listen to fxBus: it mirrors the main bus, and the Replay flight publishes to it directly
+// so a replay shows bursts and shake without touching telemetry, the coach, or the result card.
+const fxBus = createBus();
+bus.on('*', (e) => fxBus.emit(e.type, e));
+const effects = createEffects(stage.scene, fxBus, { reducedMotion: reduced });
+fxBus.on('crash', () => cam.rig.shake(1));
+fxBus.on('node_burn', () => cam.rig.shake(0.15));
 
 let levelIndex = 0, level, sys, pad, bodies, band, plan, slow, controls;
-let phase = 'planning'; // planning | flying | ended
+let phase = 'planning'; // planning | flying | replaying | ended
 let flight = null, pred = null, lastU = 0, sinceReplan = 0;
-let auto = new AutoQuality('high');
-let tierName = settings.get('quality') === 'auto' ? 'high' : settings.get('quality');
-let frameMs = 16, qualityShown = 0;
-let cardTimer = null;
+let replayFlight = null, replayEnding = false, lastRun = null, lastShow = null;
+let cardTimer = null, runSpec = null, cameraShown = 0;
 const RESULT_DELAY_MS = 1100;
 let prevAim = null, prevNodes = [], slowWasActive = false, slowSpent = 0;
 const t0 = 0; // planning time is frozen; launch windows arrive in stage 27
@@ -69,21 +75,14 @@ const coach = createCoach({ chunks: kb, getContext: () => ({ level, sys, attempt
 const coachPanel = createCoachPanel(document.getElementById('coach'), { coach, bus });
 const hud = createHud(document.getElementById('hud'), { onLaunch: () => launch(), onReset: () => reset(), onSlow: () => toggleSlow(), onCoach: () => coachPanel.toggle() });
 const card = createResultCard(document.getElementById('card'), {
-  onRetry: () => reset(), onNext: () => loadLevel(levelIndex + 1),
+  onRetry: () => reset(), onNext: () => loadLevel(levelIndex + 1), onReplay: () => startReplay(),
   onAsk: () => { coachPanel.open(); coachPanel.ask('What went wrong?'); },
 });
 
-function applyQuality() {
-  const tier = tierSettings(tierName);
-  stage.post.apply(tier); sky.setTier(tier); bodies?.setDetail(tier.planetDetail); effects.setMax(Math.min(tier.particles, 400));
-}
-function cycleQuality() {
-  const choice = nextChoice(settings.get('quality'));
-  settings.set('quality', choice);
-  if (choice === 'auto') { auto = new AutoQuality('high'); tierName = 'high'; } else tierName = choice;
-  applyQuality();
-  hud.notice(`Graphics quality: ${choice}${choice === 'auto' ? ' (adjusts to your device)' : ''}`, 3000);
-}
+const quality = createQualityLoop({
+  settings, hud,
+  apply: (tier) => { stage.post.apply(tier); sky.setTier(tier); bodies?.setDetail(tier.planetDetail); effects.setMax(Math.min(tier.particles, 400)); },
+});
 
 function relSpeed(p, t) {
   const dom = dominantBody(p.x, p.z, t, sys.bodies), [vx, vz] = velAt(dom, t, sys.byId);
@@ -98,14 +97,15 @@ function loadLevel(i) {
   pad = sys.byId[level.launch.padBody];
   bodies?.dispose();
   bodies = createBodies(stage.scene, sys.bodies, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
-  bodies.setDetail(tierSettings(tierName).planetDetail);
+  bodies.setDetail(quality.settings.planetDetail);
   band?.dispose();
   band = createTargetBand(stage.scene, level.mission, { reducedMotion: reduced });
   const [tx, tz] = sys.byId[level.mission.target].pos(t0), [px0, pz0] = pad.pos(t0);
   plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange, defaultAim: { angle: Math.atan2(tz - pz0, tx - px0), power: 0.8 } });
   slow = new SlowMo(level.slowMoSeconds);
   controls = createControls({
-    plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(), cycleQuality,
+    plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(), cycleQuality: () => quality.cycle(),
+    cycleCamera, focusTarget, orbit: (dx, dy) => cam.rig.orbitBy(dx, dy), escape: () => { if (phase === 'replaying') endReplay(true); },
     pad: () => { const [x, z] = pad.pos(t0); return { x, z }; },
     nodeTimeDefault: () => (phase === 'flying' ? flight.elapsed + 1 : ((pred.crash ? pred.crash.t : pred.points[pred.points.length - 1].t) - t0) / 2),
   });
@@ -161,6 +161,8 @@ function launch() {
   if (phase !== 'planning') return;
   flight = new Flight(sys, launchState(), { t0, mission: level.mission, bus, nodes: plan.nodes });
   phase = 'flying';
+  runSpec = launchSpec();
+  cam.rig.setMode('cinematic');
   probeView.resetTrail(); probeView.hideAim();
   hud.setPhase(phase); hud.message('');
   bus.emit('launch', { ...launchSpec(), nodes: plan.nodes.map((n) => ({ t: n.t, dv: [...n.dv] })) });
@@ -170,7 +172,8 @@ function launch() {
 function reset() {
   clearTimeout(cardTimer);
   endSlow();
-  phase = 'planning'; flight = null; plan.elapsed = 0; slow.reset();
+  phase = 'planning'; flight = null; replayFlight = null; replayEnding = false; plan.elapsed = 0; slow.reset();
+  cam.rig.setMode('plan');
   card.hide();
   probeView.hide(); probeView.resetTrail(); trajectory.setVisible(true); effects.clear();
   bodies.update(t0);
@@ -222,8 +225,33 @@ function finish(outcome, reason) {
   const show = outcome === 'delivered'
     ? (() => { const s = scoreAttempt(level, { outcome: 'delivered', fuelUsed: flight.fuelUsed, seconds: flight.elapsed }); const fuel = flight.fuelUsed, secs = flight.elapsed; return () => card.win({ level, ...s, fuelUsed: fuel, seconds: secs, hasNext: levelIndex + 1 < LIST.length }); })()
     : () => card.lose({ level, reason });
+  lastRun = { spec: runSpec, nodes: plan.nodes.map((n) => ({ t: n.t, dv: [...n.dv] })) };
+  lastShow = show;
   clearTimeout(cardTimer);
   cardTimer = setTimeout(show, RESULT_DELAY_MS);
+}
+
+/** Camera keys: C cycles the modes for this phase, F focuses the mission target. */
+const camPhase = () => (phase === 'replaying' ? 'flying' : phase);
+function cycleCamera() { if (phase !== 'replaying') cam.rig.cycle(camPhase(), level.mission.target); }
+function focusTarget() { if (phase !== 'replaying') cam.rig.setMode(cam.mode === 'focus' ? MODES_BY_PHASE[camPhase()][0] : 'focus', { focusId: level.mission.target }); }
+
+/** Replay the last attempt exactly (the sim is deterministic) with the replay camera. Nothing is recorded again. */
+function startReplay() {
+  if (phase !== 'ended' || !lastRun) return;
+  clearTimeout(cardTimer); card.hide();
+  replayFlight = new Flight(sys, levelLaunch(level, sys, lastRun.spec), { t0, mission: level.mission, nodes: lastRun.nodes, bus: fxBus });
+  phase = 'replaying'; replayEnding = false;
+  probeView.resetTrail(); effects.clear();
+  cam.rig.setMode('replay');
+  hud.message('Replay. Esc stops it, R retries.');
+  fxBus.emit('launch', { angle: lastRun.spec.angle, power: lastRun.spec.power, nodes: [] });
+}
+function endReplay(immediately = false) {
+  if (phase !== 'replaying') return;
+  clearTimeout(cardTimer);
+  const done = () => { phase = 'ended'; replayFlight = null; replayEnding = false; effects.clear(); cam.rig.setMode('follow'); hud.message(''); lastShow?.(); };
+  if (immediately) done(); else cardTimer = setTimeout(done, RESULT_DELAY_MS);
 }
 bus.on('crash', (e) => finish(`crash:${e.bodyId}`, `Crashed into ${bodyName(e.bodyId)} at t = ${(e.t - t0).toFixed(1)} s.`));
 bus.on('lost', (e) => finish('lost', `Left the map after ${(e.t - t0).toFixed(1)} s.`));
@@ -231,23 +259,14 @@ bus.on('mission_complete', () => finish('delivered'));
 
 createInput({
   canvas: document.getElementById('stage'), camera: stage.camera, onZoom: (f) => cam.zoom(f),
-  controls: { onDown: (p) => controls.onDown(p), onKey: (e) => controls.onKey(e) },
+  controls: { onDown: (p, s) => controls.onDown(p, s), onKey: (e) => controls.onKey(e) },
 });
 
-applyQuality();
-// Dev hook for the screenshot tool: index.html?debug exposes a few controls. Inert without the query.
-if (new URLSearchParams(location.search).has('debug')) {
-  window.__orbit = {
-    applySolution() {
-      const sol = level.solution;
-      plan.setAim({ angle: sol.launch.angle, power: sol.launch.power / level.launch.maxSpeed });
-      plan.nodes = sol.nodes.map((n) => ({ t: n.t, dv: [...n.dv] }));
-      plan.select(plan.nodes.length ? 0 : -1);
-      changed();
-    },
-    launch: () => launch(), state: () => ({ phase, t: flight?.elapsed ?? 0 }),
-  };
-}
+quality.apply();
+installDebugHook({
+  level: () => level, plan: () => plan, changed: () => changed(), launch: () => launch(), replay: () => startReplay(),
+  cameraMode: () => cam.mode, state: () => ({ phase, t: (replayFlight ?? flight)?.elapsed ?? 0 }),
+});
 const fromHash = LIST.findIndex((l) => l.id === location.hash.slice(1));
 loadLevel(fromHash >= 0 ? fromHash : 0);
 if (GALLERY_MODE) cam.zoom(2.1);
@@ -256,13 +275,9 @@ let last = performance.now();
 stage.renderer.setAnimationLoop((now) => {
   const rawMs = now - last;
   const dt = Math.min(0.1, rawMs / 1000); last = now;
-  if (rawMs > 0 && rawMs < 250) frameMs += (rawMs - frameMs) * 0.05;
-  if (settings.get('quality') === 'auto') {
-    const drop = auto.push(rawMs);
-    if (drop) { tierName = drop.to; applyQuality(); hud.notice(`Lowered graphics to ${drop.to} to keep play smooth. Press Q to choose a quality.`); }
-  }
-  if (now - qualityShown > 500) { qualityShown = now; hud.set({ quality: `${settings.get('quality')}${settings.get('quality') === 'auto' ? ` (${tierName})` : ''}, ${frameMs.toFixed(1)} ms` }); }
-  if (flight) {
+  quality.frame(now, rawMs);
+  const live = replayFlight ?? flight;
+  if (live) {
     if (phase === 'flying') {
       const scale = slow.tick(dt);
       if (slow.active) { slowSpent += dt; if (!slowWasActive) { slowWasActive = true; bus.emit('slowmo_start'); } }
@@ -271,17 +286,25 @@ stage.renderer.setAnimationLoop((now) => {
       sinceReplan += dt;
       if (phase === 'flying' && sinceReplan > 0.2) recompute();
       hud.set({ speed: relSpeed(flight.probe, flight.t).toFixed(2), progress: `${Math.round((flight.missionState?.progress ?? 0) * 100)}%`, slow: slow.active ? `${slow.left.toFixed(1)} s (on)` : `${slow.left.toFixed(1)} s` });
-      cam.setTarget(flight.probe.x, flight.probe.z);
+    } else if (phase === 'replaying') {
+      replayFlight.advance(dt);
+      hud.set({ speed: relSpeed(replayFlight.probe, replayFlight.t).toFixed(2), progress: `${Math.round((replayFlight.missionState?.progress ?? 0) * 100)}%` });
+      if (replayFlight.done && !replayEnding) { replayEnding = true; endReplay(); }
     }
-    bodies.update(flight.t);
-    probeView.place(flight.probe.x, flight.probe.z, flight.probe.vx, flight.probe.vz, relSpeed(flight.probe, flight.t), now / 1000);
+    bodies.update(live.t);
+    probeView.place(live.probe.x, live.probe.z, live.probe.vx, live.probe.vz, relSpeed(live.probe, live.t), now / 1000);
   } else hud.set({ slow: `${slow.left.toFixed(1)} s` });
-  cam.update(dt);
+  const tNow = live ? live.t : t0;
+  cam.update(dt, {
+    probe: live ? live.probe : null, slow: phase === 'flying' && slow.active,
+    focus: (id) => { const b = sys.byId[id]; if (!b) return null; const [x, z] = b.pos(tNow); return { x, z, radius: b.radius }; },
+  });
+  if (now - cameraShown > 400) { cameraShown = now; hud.set({ camera: cam.mode }); }
   sky.update(stage.camera, now / 1000);
-  const [bx, bz] = sys.byId[level.mission.target].pos(flight ? flight.t : t0);
-  band.update(bx, bz, now / 1000, flight?.missionState?.progress ?? 0);
+  const [bx, bz] = sys.byId[level.mission.target].pos(tNow);
+  band.update(bx, bz, now / 1000, live?.missionState?.progress ?? 0);
   trajectory.setScale(u()); probeView.setScale(u());
-  effects.update(dt, u(), flight ? flight.probe : null);
+  effects.update(dt, u(), live ? live.probe : null);
   labels.update();
   if (pred && Math.abs(u() - lastU) / lastU > 0.03) { lastU = u(); nodeView.update(plan, pred, lastU); }
   stage.render();

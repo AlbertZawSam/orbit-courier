@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { createPost } from './post.js';
+import { CameraRig } from './cameraRig.js';
 
 export const COLORS = { void: 0x0a0e1f, ivory: 0xefe8d8, brass: 0xc8a35a, safe: 0x4fd1c5, danger: 0xf0623d, cargo: 0xf2c14e };
 
@@ -26,31 +27,23 @@ export function createStage(canvas) {
   return { renderer, scene, camera, post, render: () => post.render() };
 }
 
-/** Damped follow camera looking mostly down at the sim plane. */
-export function createCamera(camera) {
-  const target = new THREE.Vector3(), goal = new THREE.Vector3();
-  let dist = 15, goalDist = 15;
+/** Binds the pure CameraRig to the three.js camera. See cameraRig.js for the modes. */
+export function createCamera(camera, { reducedMotion = () => false, onMode = null } = {}) {
+  const rig = new CameraRig({ reducedMotion, onMode });
   return {
-    setTarget(x, z) { goal.set(x, 0, z); },
-    snap(x, z) { goal.set(x, 0, z); target.copy(goal); },
-    get dist() { return dist; },
-    /**
-     * Fit a world-space rectangle ({minX,maxX,minZ,maxZ}) in view. On `reset` the fit is exact; otherwise the view
-     * only ever zooms out, so aiming never makes the picture jump around.
-     */
-    frame(b, reset = false) {
-      const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
-      const need = Math.max((b.maxX - b.minX) / (1.65 * 0.62), (b.maxZ - b.minZ) / (0.926 * 0.62), 9);
-      if (reset) { goal.set(cx, 0, cz); goalDist = Math.min(90, need); return; }
-      goal.set(cx, 0, cz); goalDist = Math.min(90, Math.max(goalDist, need));
-    },
-    zoom(f) { goalDist = Math.min(90, Math.max(6, goalDist * f)); },
-    update(dt) {
-      const k = 1 - Math.exp(-dt * 4);
-      target.lerp(goal, k);
-      dist += (goalDist - dist) * k;
-      camera.position.set(target.x, target.y + dist * 0.9, target.z + dist * 0.45);
-      camera.lookAt(target);
+    rig,
+    get dist() { return rig.cur.dist; },
+    get mode() { return rig.mode; },
+    setTarget: (x, z) => rig.setPlanTarget(x, z),
+    snap: (x, z) => rig.snap(x, z),
+    frame: (b, reset) => rig.frame(b, reset),
+    zoom: (f) => rig.zoom(f),
+    update(dt, ctx) {
+      rig.update(dt, ctx);
+      const c = rig.compute();
+      camera.position.set(...c.position);
+      camera.lookAt(c.target[0], c.target[1], c.target[2]);
+      if (Math.abs(camera.fov - c.fov) > 0.01) { camera.fov = c.fov; camera.updateProjectionMatrix(); }
     },
   };
 }

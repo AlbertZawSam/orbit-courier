@@ -6,6 +6,7 @@ export function createHud(root, { onLaunch, onReset, onSlow, onCoach }) {
       <div class="hud-row"><span class="hud-label">Speed</span><span class="hud-num" data-k="speed"></span></div>
       <div class="hud-row"><span class="hud-label">Mission</span><span data-k="mission"></span></div>
       <div class="hud-row"><span class="hud-label">Progress</span><span class="hud-num" data-k="progress"></span></div>
+      <div class="hud-row"><span class="hud-label">Camera (C)</span><span class="hud-num" data-k="camera"></span></div>
       <div class="hud-row"><span class="hud-label">Quality (Q)</span><span class="hud-num" data-k="quality"></span></div>
       <div class="hud-row"><span class="hud-label">Slow-mo</span><span class="hud-num" data-k="slow"></span></div>
       <ol class="hud-nodes" data-k="nodes" aria-label="Burn nodes"></ol>
@@ -18,7 +19,7 @@ export function createHud(root, { onLaunch, onReset, onSlow, onCoach }) {
       <button data-k="reset">Reset (R)</button>
       <button data-k="coach">Navigator (H)</button>
     </div>
-    <div class="hud-help">Drag to aim. Click the path to add a burn node (or N); drag its handles, or + - , . to adjust. Tab selects, Delete removes, Enter launches.</div>`;
+    <div class="hud-help">Drag to aim. Click the path to add a burn node (or N); drag its handles, or + - , . to adjust. Tab selects, Delete removes, Enter launches. C changes the camera, F focuses the target.</div>`;
   const q = (k) => root.querySelector(`[data-k="${k}"]`);
   const press = (fn) => (e) => { e.currentTarget.blur(); fn(); }; // keep keyboard shortcuts working after a click
   q('launch').addEventListener('click', press(onLaunch));

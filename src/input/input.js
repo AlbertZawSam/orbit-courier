@@ -16,10 +16,10 @@ export function createInput({ canvas, camera, controls, onZoom }) {
   canvas.addEventListener('pointerdown', (e) => {
     const pt = worldPoint(e);
     if (!pt) return;
-    drag = controls.onDown(pt);
+    drag = controls.onDown(pt, [e.clientX, e.clientY]);
     if (drag) canvas.setPointerCapture(e.pointerId);
   });
-  canvas.addEventListener('pointermove', (e) => { if (drag) { const pt = worldPoint(e); if (pt) drag(pt); } });
+  canvas.addEventListener('pointermove', (e) => { if (drag) { const pt = worldPoint(e); if (pt) drag(pt, [e.clientX, e.clientY]); } });
   const end = () => { drag = null; };
   canvas.addEventListener('pointerup', end);
   canvas.addEventListener('pointercancel', end);

@@ -1,5 +1,5 @@
 /** Result card: win (stars, payout, fuel versus par) or lose (why), with Retry and Next. */
-export function createResultCard(root, { onRetry, onNext, onAsk }) {
+export function createResultCard(root, { onRetry, onNext, onAsk, onReplay }) {
   root.hidden = true;
   const render = (html) => { root.innerHTML = html; root.hidden = false; root.querySelector('button')?.focus(); };
   root.addEventListener('click', (e) => {
@@ -7,6 +7,7 @@ export function createResultCard(root, { onRetry, onNext, onAsk }) {
     if (k === 'retry') onRetry();
     if (k === 'next') onNext();
     if (k === 'ask') onAsk();
+    if (k === 'replay') onReplay();
   });
   return {
     hide() { root.hidden = true; root.innerHTML = ''; },
@@ -20,12 +21,12 @@ export function createResultCard(root, { onRetry, onNext, onAsk }) {
           <tr><td>Flight time</td><td>${seconds.toFixed(1)} s</td></tr>
           <tr><td>Payout</td><td>${payout} credits (base ${parts.base}, fuel ${parts.fuelLeft}, time ${parts.time})</td></tr>
         </table>
-        <div class="card-buttons"><button data-k="retry">Retry</button>${hasNext ? '<button data-k="next">Next level</button>' : ''}</div></div>`);
+        <div class="card-buttons"><button data-k="retry">Retry</button><button data-k="replay">Replay</button>${hasNext ? '<button data-k="next">Next level</button>' : ''}</div></div>`);
     },
     lose({ level, reason }) {
       render(`<div class="card" role="dialog" aria-label="Attempt failed">
         <h2>${level.name}: not this time</h2><p>${reason}</p>
-        <div class="card-buttons"><button data-k="retry">Retry</button><button data-k="ask">Ask Navigator</button></div></div>`);
+        <div class="card-buttons"><button data-k="retry">Retry</button><button data-k="replay">Replay</button><button data-k="ask">Ask Navigator</button></div></div>`);
     },
   };
 }

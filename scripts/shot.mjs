@@ -35,6 +35,19 @@ await waitSim(5.55); await page.waitForTimeout(250); await shot('l3-burn');
 // 4. a crash burst
 await open('L1'); await page.evaluate(() => window.__orbit.launch());
 await page.waitForFunction(() => window.__orbit.state().phase === 'ended', null, { timeout: 60000 }); await page.waitForTimeout(350); await shot('l1-crash');
+// 5. camera modes: cinematic launch, focus, and the replay camera
+await open('L1'); await page.evaluate(() => window.__orbit.applySolution()); await page.waitForTimeout(400);
+await page.evaluate(() => window.__orbit.launch()); await page.waitForTimeout(150);
+console.log('camera right after launch:', await page.evaluate(() => window.__orbit.cameraMode()));
+await waitSim(0.7); await page.waitForTimeout(100); await shot('l1-cinematic');
+await page.waitForFunction(() => window.__orbit.state().phase === 'ended', null, { timeout: 90000 }); await page.waitForTimeout(1500);
+await page.evaluate(() => window.__orbit.replay()); await page.waitForTimeout(150);
+console.log('camera during replay:', await page.evaluate(() => window.__orbit.cameraMode()), '| phase:', await page.evaluate(() => window.__orbit.state().phase));
+await waitSim(1.6); await page.waitForTimeout(100); await shot('l1-replay');
+await page.keyboard.press('Escape'); await page.waitForTimeout(300);
+console.log('after Escape:', await page.evaluate(() => window.__orbit.state().phase), '| camera:', await page.evaluate(() => window.__orbit.cameraMode()));
+await open('L1'); await page.keyboard.press('f'); await page.waitForTimeout(1800); await shot('l1-focus');
+console.log('camera after F:', await page.evaluate(() => window.__orbit.cameraMode()));
 // 5. the Navigator panel and the renderer test bench
 await open('L3'); await page.keyboard.press('h'); await page.waitForTimeout(200);
 await page.keyboard.type('how do I add a burn node'); await page.keyboard.press('Enter'); await page.waitForTimeout(300); await shot('l3-coach');

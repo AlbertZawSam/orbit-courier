@@ -12,7 +12,7 @@ export function createControls(ctx) {
   const infoFor = (i) => ctx.pred().nodeInfo.find((n) => n.idx === nodeIndex(plan.nodes[i].t));
   const canEditNodes = () => ctx.phase() === 'planning' || ctx.phase() === 'flying';
 
-  function onDown(pt) {
+  function onDown(pt, screen) {
     const u = ctx.u();
     const hit = canEditNodes() ? hitTest(plan, ctx.pred(), pt, u, ctx.t0()) : null;
     if (hit?.kind === 'handle') {
@@ -26,6 +26,10 @@ export function createControls(ctx) {
     }
     if (hit?.kind === 'node') { plan.select(hit.node); ctx.changed(); return () => {}; }
     if (hit?.kind === 'path') { if (plan.addNode(hit.t) >= 0) ctx.changed(); return () => {}; }
+    if (ctx.phase() === 'flying' && screen) {
+      let last = screen; // empty space during flight: drag to orbit the camera (limited)
+      return (_, s) => { ctx.orbit(s[0] - last[0], s[1] - last[1]); last = s; };
+    }
     if (ctx.phase() !== 'planning') return null;
     const aimTo = (p) => {
       const pad = ctx.pad(), dx = p[0] - pad.x, dz = p[1] - pad.z;
@@ -39,6 +43,9 @@ export function createControls(ctx) {
   function onKey(e) {
     const k = e.key, fine = e.shiftKey ? 0.01 : 0.05;
     if (k === 'h' || k === 'H') { ctx.toggleCoach(); return true; }
+    if (k === 'c' || k === 'C') { ctx.cycleCamera(); return true; }
+    if (k === 'f' || k === 'F') { ctx.focusTarget(); return true; }
+    if (k === 'Escape') { ctx.escape(); return true; }
     if (k === 'q' || k === 'Q') { ctx.cycleQuality(); return true; }
     if (k === 'r' || k === 'R') { ctx.reset(); return true; }
     if (k === 's' || k === 'S') { ctx.toggleSlow(); return true; }
