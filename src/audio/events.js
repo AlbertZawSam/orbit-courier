@@ -8,7 +8,7 @@ export const ALL_EVENTS = [
   'coach_message', 'report_open', 'postcard_saved', 'song_played', 'ui_click', 'ui_error', 'tutorial_start',
   'tutorial_step_done', 'tutorial_skipped', 'tutorial_complete', 'upgrade_bought', 'mode_changed',
   // added by the game
-  'aim_changed', 'node_burn', 'attempt_end', 'stars_awarded',
+  'aim_changed', 'node_burn', 'attempt_end', 'stars_awarded', 'launch_time_changed',
 ];
 
 /**
@@ -53,6 +53,7 @@ export const EVENT_SOUNDS = {
   upgrade_bought: { silent: 'upgrades arrive in stage 16' },
   mode_changed: { silent: 'difficulty modes arrive in stage 16' },
   aim_changed: { silent: 'fires on every drag frame; a sound here would be noise' },
+  launch_time_changed: { silent: 'fires on every slider frame; a sound here would be noise' },
   node_burn: { play: (a) => a.ambience.thrustBurst(0.35) },
   attempt_end: { silent: 'bookkeeping only; the crash, lost and delivery cues already played' },
   stars_awarded: { play: (a, e) => sfx.stars(a.engine, e.stars ?? 0) },

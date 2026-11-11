@@ -33,6 +33,7 @@ export function validateLevel(l) {
   else need(false, `unknown mission type "${m.type}"`);
   need(l.fuel >= 0 && Number.isInteger(l.maxNodes) && l.maxNodes >= 0, 'fuel and maxNodes required');
   need(l.slowMoSeconds >= 0, 'slowMoSeconds required');
+  need(l.launchWindow === undefined || (l.launchWindow >= 0 && Number.isFinite(l.launchWindow)), 'launchWindow must be a number of seconds');
   need(l.timeLimit === null || l.timeLimit > 0, 'timeLimit must be null or positive');
   need(l.par && l.par.fuel >= 0, 'par.fuel required');
   need(Array.isArray(l.hints) && l.hints.length === 3 && l.hints.every((h) => h.length > 0), 'exactly 3 non-empty hints');
@@ -42,6 +43,7 @@ export function validateLevel(l) {
   if (l.solution) {
     need(l.solution.nodes.length <= l.maxNodes, 'solution uses more nodes than maxNodes');
     need(l.solution.launch.power <= l.launch.maxSpeed, 'solution power exceeds launch.maxSpeed');
+    need((l.solution.launch.t0 ?? 0) >= 0 && (l.solution.launch.t0 ?? 0) <= (l.launchWindow ?? 0) + 1e-9, 'solution launch time is outside launchWindow');
     const r = l.launch.angleRange;
     if (r) need(l.solution.launch.angle >= r[0] - 1e-9 && l.solution.launch.angle <= r[1] + 1e-9, 'solution angle is outside launch.angleRange');
   }

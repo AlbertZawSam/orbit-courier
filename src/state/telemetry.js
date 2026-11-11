@@ -17,7 +17,7 @@ export function createTelemetry({ bus, storage }) {
     if (events.length > MAX_EVENTS) events = events.slice(-MAX_EVENTS);
     if (e.type === 'level_start') draft = fresh(e);
     if (!draft) return;
-    if (e.type === 'aim_changed' || e.type === 'node_added' || e.type === 'node_moved' || e.type === 'node_removed') draft.planEdits++;
+    if (e.type === 'aim_changed' || e.type === 'launch_time_changed' || e.type === 'node_added' || e.type === 'node_moved' || e.type === 'node_removed') draft.planEdits++;
     if (e.type === 'plan_requested') draft.plannerRequests++;
     if (e.type === 'assist_used') draft.assisted = true;
     if (e.type === 'window_map_open') draft.mapUsed = true;

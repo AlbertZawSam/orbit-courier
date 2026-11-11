@@ -43,6 +43,7 @@ export function createControls(ctx) {
   function onKey(e) {
     const k = e.key, fine = e.shiftKey ? 0.01 : 0.05;
     if (k === 'h' || k === 'H') { ctx.toggleCoach(); return true; }
+    if (k === 'PageUp' || k === 'PageDown') { if (ctx.phase() === 'planning') ctx.nudgeTime((k === 'PageUp' ? 1 : -1) * (e.shiftKey ? 0.05 : 0.5)); return true; }
     if (k === 'm' || k === 'M') { ctx.toggleMute(); return true; }
     if (k === 'c' || k === 'C') { ctx.cycleCamera(); return true; }
     if (k === 'f' || k === 'F') { ctx.focusTarget(); return true; }

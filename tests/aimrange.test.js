@@ -41,3 +41,45 @@ describe('default aim', () => {
     expect(p.aim.power).toBe(0.8);
   });
 });
+
+import { createPlanEvents } from '../src/game/planEvents.js';
+import { createBus } from '../src/state/events.js';
+import { DT } from '../src/sim/constants.js';
+import { validateLevel } from '../src/levels/schema.js';
+import { LEVELS } from '../src/levels/levels.js';
+
+describe('launch time', () => {
+  it('is zero by default and a level with no window cannot be moved', () => {
+    const p = new Plan({ fuel: 1, maxNodes: 1 });
+    expect(p.launchTime).toBe(0);
+    p.setLaunchTime(5);
+    expect(p.launchTime).toBe(0);
+  });
+  it('is clamped to the window and snapped to a sim step, so launches are always reproducible', () => {
+    const p = new Plan({ fuel: 1, maxNodes: 1, launchWindow: 20 });
+    p.setLaunchTime(3.3333);
+    expect(p.launchTime / DT).toBeCloseTo(Math.round(p.launchTime / DT), 9);
+    expect(Math.abs(p.launchTime - 3.3333)).toBeLessThanOrEqual(DT / 2 + 1e-9);
+    p.setLaunchTime(99); expect(p.launchTime).toBe(20);
+    p.setLaunchTime(-4); expect(p.launchTime).toBe(0);
+  });
+  it('announces a change once, and counts as a plan edit for telemetry', () => {
+    const bus = createBus(), seen = [];
+    bus.on('launch_time_changed', (e) => seen.push(e.t));
+    const p = new Plan({ fuel: 1, maxNodes: 1, launchWindow: 20 }), ev = createPlanEvents({ bus, getPlan: () => p });
+    ev.sync();
+    ev.emit(); expect(seen).toEqual([]);
+    p.setLaunchTime(4); ev.emit(); ev.emit();
+    expect(seen).toEqual([4]);
+    p.setLaunchTime(9); ev.emit();
+    expect(seen).toEqual([4, 9]);
+  });
+  it('the schema accepts a window, rejects a nonsense one, and requires the solution to launch inside it', () => {
+    const base = LEVELS[0];
+    expect(validateLevel({ ...base, launchWindow: 12 }).filter((e) => /window/.test(e))).toEqual([]);
+    expect(validateLevel({ ...base, launchWindow: -1 }).join('\n')).toMatch(/launchWindow must be/);
+    const late = { ...base, launchWindow: 5, solution: { ...base.solution, launch: { ...base.solution.launch, t0: 9 } } };
+    expect(validateLevel(late).join('\n')).toMatch(/outside launchWindow/);
+    expect(validateLevel(base).join('\n')).not.toMatch(/launchWindow/);
+  });
+});

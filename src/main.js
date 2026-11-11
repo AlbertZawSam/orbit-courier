@@ -75,8 +75,8 @@ let flight = null, pred = null, lastU = 0, sinceReplan = 0;
 let replayFlight = null, replayEnding = false, lastRun = null, lastShow = null;
 let cardTimer = null, runSpec = null, cameraShown = 0, progressAt = 0, fuelLowSent = false;
 const RESULT_DELAY_MS = 1100;
-let slowWasActive = false, slowSpent = 0;
-const t0 = 0; // planning time is frozen; launch windows arrive in stage 27
+let slowWasActive = false, slowSpent = 0, lastT0 = 0;
+let t0 = 0;    // launch time of the attempt being planned or flown (the player picks it with the launch-time slider)
 
 const planEvents = createPlanEvents({ bus, getPlan: () => plan });
 const framing = createFraming({ camera: stage.camera, cam, getState: () => ({ pred, pad, sys, level, t0 }) });
@@ -87,7 +87,7 @@ const bodyName = (id) => sys.byId[id]?.name ?? (id === 'asteroid' ? 'an asteroid
 
 const coach = createCoach({ chunks: kb, getContext: () => ({ level, sys, attempts: telemetry.attempts(), skill: 'beginner' }) });
 const coachPanel = createCoachPanel(document.getElementById('coach'), { coach, bus });
-const hud = createHud(document.getElementById('hud'), { onLaunch: () => launch(), onReset: () => reset(), onSlow: () => toggleSlow(), onCoach: () => coachPanel.toggle(), onSound: () => settingsPanel.toggle() });
+const hud = createHud(document.getElementById('hud'), { onLaunch: () => launch(), onReset: () => reset(), onSlow: () => toggleSlow(), onCoach: () => coachPanel.toggle(), onSound: () => settingsPanel.toggle(), onTime: (v) => { if (phase === 'planning') { plan.setLaunchTime(v); changed(); } } });
 const card = createResultCard(document.getElementById('card'), {
   onRetry: () => reset(), onNext: () => loadLevel(levelIndex + 1), onReplay: () => startReplay(),
   onAsk: () => { coachPanel.open(); coachPanel.ask('What went wrong?'); },
@@ -116,12 +116,12 @@ function loadLevel(i) {
   levelView?.dispose();
   levelView = createLevelView(stage.scene, level, sys, { reducedMotion: reduced });
   const [tx, tz] = sys.byId[level.mission.target].pos(t0), [px0, pz0] = pad.pos(t0);
-  plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange, defaultAim: { angle: Math.atan2(tz - pz0, tx - px0), power: 0.8 } });
+  plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange, launchWindow: level.launchWindow ?? 0, defaultAim: { angle: Math.atan2(tz - pz0, tx - px0), power: 0.8 } });
   slow = new SlowMo(level.slowMoSeconds);
   controls = createControls({
     plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(), cycleQuality: () => quality.cycle(), denied: () => bus.emit('ui_error', { reason: 'refused' }),
     toggleMute: () => { settings.set('soundOn', !settings.get('soundOn')); hud.notice(settings.get('soundOn') ? 'Sound on' : 'Sound off', 2000); },
-    cycleCamera, focusTarget, orbit: (dx, dy) => cam.rig.orbitBy(dx, dy), escape: () => { if (phase === 'replaying') endReplay(true); },
+    cycleCamera, focusTarget, nudgeTime: (d) => { plan.setLaunchTime(plan.launchTime + d); changed(); }, orbit: (dx, dy) => cam.rig.orbitBy(dx, dy), escape: () => { if (phase === 'replaying') endReplay(true); },
     pad: () => { const [x, z] = pad.pos(t0); return { x, z }; },
     nodeTimeDefault: () => (phase === 'flying' ? flight.elapsed + 1 : ((pred.crash ? pred.crash.t : pred.points[pred.points.length - 1].t) - t0) / 2),
   });
@@ -129,6 +129,8 @@ function loadLevel(i) {
   coach.resetHints(level.id);
   bus.emit('level_start', { levelId: level.id, mode: 'easy', tutorial: false });
   hud.set({ mission: `${level.name}: ${missionGoal(level.mission, bodyName)}` });
+  hud.setLaunchWindow(plan.launchWindow, 0);
+  t0 = 0; lastT0 = 0;
   cam.snap((px0 + tx) / 2, (pz0 + tz) / 2);
   reset();
 }
@@ -150,9 +152,12 @@ function recompute() {
 }
 
 function changed() {
+  if (phase === 'planning') t0 = plan.launchTime;
   planEvents.emit();
   recompute();
-  if (phase === 'planning') framing.fit(false);
+  if (phase === 'planning') {
+    if (t0 !== lastT0) { lastT0 = t0; bodies.update(t0); framing.fit(true); hud.setLaunchTime(t0); } else framing.fit(false);
+  }
   if (phase === 'flying') flight.setNodes(plan.nodes);
   if (phase === 'planning') {
     const [px, pz] = pad.pos(t0);
@@ -178,6 +183,7 @@ function reset() {
   clearTimeout(cardTimer);
   endSlow();
   phase = 'planning'; flight = null; replayFlight = null; replayEnding = false; plan.elapsed = 0; slow.reset();
+  t0 = plan.launchTime; lastT0 = t0; hud.setLaunchTime(t0);
   cam.rig.setMode('plan');
   card.hide();
   probeView.hide(); probeView.resetTrail(); trajectory.setVisible(true); effects.clear();
@@ -218,7 +224,7 @@ function focusTarget() { if (phase !== 'replaying') cam.rig.setMode(cam.mode ===
 function startReplay() {
   if (phase !== 'ended' || !lastRun) return;
   clearTimeout(cardTimer); card.hide();
-  replayFlight = new Flight(sys, levelLaunch(level, sys, lastRun.spec), { t0, mission: level.mission, nodes: lastRun.nodes, bus: fxBus });
+  replayFlight = new Flight(sys, levelLaunch(level, sys, lastRun.spec), { t0: lastRun.spec.t0, mission: level.mission, nodes: lastRun.nodes, bus: fxBus });
   phase = 'replaying'; replayEnding = false;
   probeView.resetTrail(); effects.clear();
   cam.rig.setMode('replay');

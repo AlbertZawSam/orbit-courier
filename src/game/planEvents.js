@@ -1,13 +1,14 @@
 /** Turns changes to the plan (aim, nodes) into bus events, so telemetry and sound hear what the player did. */
 export function createPlanEvents({ bus, getPlan }) {
-  let prevAim = null, prevNodes = [];
+  let prevAim = null, prevNodes = [], prevTime = 0;
   const copy = (nodes) => nodes.map((n) => ({ t: n.t, dv: [...n.dv] }));
   return {
     /** Forget what was there: call when a new plan is created. */
-    sync() { const plan = getPlan(); prevAim = JSON.stringify(plan.aim); prevNodes = []; },
+    sync() { const plan = getPlan(); prevAim = JSON.stringify(plan.aim); prevNodes = []; prevTime = plan.launchTime; },
     emit() {
       const plan = getPlan(), aim = JSON.stringify(plan.aim);
       if (aim !== prevAim) { prevAim = aim; bus.emit('aim_changed', { angle: plan.aim.angle, power: plan.aim.power }); }
+      if (plan.launchTime !== prevTime) { prevTime = plan.launchTime; bus.emit('launch_time_changed', { t: plan.launchTime }); }
       const now = plan.nodes;
       if (now.length > prevNodes.length) bus.emit('node_added', { count: now.length });
       else if (now.length < prevNodes.length) bus.emit('node_removed', { count: now.length });

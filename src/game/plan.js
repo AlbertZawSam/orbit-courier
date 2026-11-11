@@ -17,8 +17,10 @@ const quantize = (t) => nodeIndex(t) * DT;
 
 /** Launch aim, burn nodes, selection, and the fuel budget. Pure: no three.js, no DOM. */
 export class Plan {
-  constructor({ fuel, maxNodes, angleRange = null, defaultAim = null }) {
+  constructor({ fuel, maxNodes, angleRange = null, defaultAim = null, launchWindow = 0 }) {
     this.fuel = fuel; this.maxNodes = maxNodes; this.angleRange = angleRange;
+    this.launchWindow = launchWindow; // how many seconds the player may wait before launching (0: launch at once)
+    this.launchTime = 0;
     this.aim = { angle: 0.6, power: 0.8 };
     if (defaultAim) this.aim = { angle: defaultAim.angle, power: defaultAim.power };
     else if (angleRange && angleRange[1] - angleRange[0] < TAU - 1e-9) this.aim.angle = (angleRange[0] + angleRange[1]) / 2;
@@ -31,6 +33,8 @@ export class Plan {
   setAim({ angle, power }) {
     this.aim = { angle: clampAngle(angle, this.angleRange), power: Math.min(1, Math.max(0, power)) };
   }
+  /** Choose when to launch (seconds from the start of the level), clamped to the level's window and snapped to a sim step. */
+  setLaunchTime(t) { this.launchTime = Math.round(Math.min(this.launchWindow, Math.max(0, t)) / DT) * DT; }
   fuelUsed() { return this.nodes.reduce((s, n) => s + burnCost(n.dv), 0); }
   fuelLeft() { return this.fuel - this.fuelUsed(); }
   locked(i) { return this.nodes[i].t <= this.elapsed + 1e-9; }
