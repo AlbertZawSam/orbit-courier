@@ -47,7 +47,7 @@ describe('ghost and mission-aware previews', () => {
     const f = new Flight(lsys, p0, { t0: 0, mission: level.mission });
     while (f.missionState.held < 1 && !f.done) f.advance(0.05);
     const full = predict(lsys, p0, { steps: 4000, mission: level.mission });
-    const again = predict(lsys, f.probe, { startIndex: f.i, steps: 4000, mission: level.mission, missionHeld: f.missionState.held });
+    const again = predict(lsys, f.probe, { startIndex: f.i, steps: 4000, mission: level.mission, missionResume: f.missionState });
     expect(again.delivered.i).toBe(full.delivered.i);
   });
   it('no mission means no delivery', () => {

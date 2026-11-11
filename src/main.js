@@ -136,7 +136,7 @@ function loadLevel(i) {
 function recompute() {
   if (phase === 'flying') {
     plan.elapsed = flight.elapsed;
-    pred = predict(sys, flight.probe, { t0, startIndex: flight.i, nodes: plan.nodes, ghost: true, mission: level.mission, missionHeld: flight.missionState?.held ?? 0 });
+    pred = predict(sys, flight.probe, { t0, startIndex: flight.i, nodes: plan.nodes, ghost: true, mission: level.mission, missionResume: flight.missionState ?? {} });
   } else {
     plan.elapsed = 0;
     pred = predict(sys, launchState(), { t0, nodes: plan.nodes, ghost: true, mission: level.mission });

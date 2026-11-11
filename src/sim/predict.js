@@ -26,12 +26,13 @@ export function elementsAbout(p, body, t, byId) {
  * `startIndex` lets a preview begin mid-flight: step indices stay absolute from launch.
  * @param {{bodies:object[], byId:object, hazards?:object[], bounds?:number}} sys
  * @param {{x:number,z:number,vx:number,vz:number}} probe0
-  * `mission` makes the preview run the same mission tracker as the flight (starting with `missionHeld` seconds already held),
+  * `mission` makes the preview run the same mission tracker as the flight (restored from `missionResume`, normally the
+ * flight's `missionState`, when previewing mid-flight),
  * so it can report `delivered` and stop there, exactly when the flight would.
  * `ghost` keeps integrating after a crash or leaving the map (display only: the first crash and loss are still reported).
- * @param {{t0?:number, steps?:number, nodes?:{t:number,dv:number[]}[], startIndex?:number, ghost?:boolean}} opts
+ * @param {{t0?:number, steps?:number, nodes?:{t:number,dv:number[]}[], startIndex?:number, ghost?:boolean, mission?:object, missionResume?:object}} opts
  */
-export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS, nodes = [], startIndex = 0, ghost = false, mission = null, missionHeld = 0 } = {}) {
+export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS, nodes = [], startIndex = 0, ghost = false, mission = null, missionResume = {} } = {}) {
   const { bodies, byId, bounds = Infinity } = sys;
   const nodeMap = indexNodes(nodes);
   const points = [{ i: startIndex, t: timeAt(t0, startIndex), x: probe0.x, z: probe0.z }];
@@ -46,7 +47,7 @@ export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS, no
     }
   };
   let p = probe0, crash = null, lost = null, delivered = null;
-  const tracker = mission ? createMission(mission, missionHeld) : null;
+  const tracker = mission ? createMission(mission, missionResume) : null;
   const landing = landingOf(mission);
   note(p, points[0].t, startIndex);
   for (let k = 0; k < steps; k++) {

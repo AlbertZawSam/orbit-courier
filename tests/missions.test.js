@@ -186,3 +186,114 @@ describe('soft landing', () => {
     expect(validateLevel({ ...base, mission: { ...SL, target: 'kepi', maxLandSpeed: 0 } }).join('\n')).toMatch(/soft_landing needs maxLandSpeed/);
   });
 });
+
+// ---------- gate run ----------
+import { segmentsIntersect, gateEnds } from '../src/sim/geometry.js';
+import { createGateRun } from '../src/sim/missions.js';
+
+const gate = (x, half = 1, angle = Math.PI / 2, z = 0) => ({ x, z, angle, half }); // a vertical wall at x
+const GR = (xs) => ({ type: 'gate_run', target: 'stn', gates: xs.map((x) => gate(x)) });
+const through = (m, pts) => { let st; for (const [x, z] of pts) st = m.update({ x, z, vx: 0, vz: 0 }); return st; };
+
+describe('segment geometry', () => {
+  const P = (x, z) => ({ x, z });
+  it('detects crossings, misses, endpoint touches, and ignores parallel segments', () => {
+    expect(segmentsIntersect(P(0, 0), P(2, 2), P(0, 2), P(2, 0))).toBe(true);
+    expect(segmentsIntersect(P(0, 0), P(1, 0), P(2, -1), P(2, 1))).toBe(false);   // stops short
+    expect(segmentsIntersect(P(0, 0), P(2, 0), P(2, -1), P(2, 1))).toBe(true);    // touches the wall exactly
+    expect(segmentsIntersect(P(0, 0), P(4, 0), P(2, 0.5), P(2, 3))).toBe(false);  // passes below the wall
+    expect(segmentsIntersect(P(0, 0), P(1, 0), P(0, 1), P(1, 1))).toBe(false);    // parallel
+    expect(segmentsIntersect(P(0, 0), P(1, 1), P(0, 0), P(1, 1))).toBe(false);    // collinear
+  });
+  it('builds gate end points from centre, angle and half-length', () => {
+    const [a, b] = gateEnds({ x: 5, z: 2, angle: 0, half: 3 });
+    expect(a).toEqual({ x: 2, z: 2 }); expect(b).toEqual({ x: 8, z: 2 });
+    const [c, d] = gateEnds({ x: 0, z: 0, angle: Math.PI / 2, half: 1 });
+    expect(c.z).toBeCloseTo(-1, 12); expect(d.z).toBeCloseTo(1, 12); expect(Math.abs(c.x)).toBeLessThan(1e-12);
+  });
+});
+
+describe('gate run', () => {
+  it('passing every gate in order wins, in either direction of travel', () => {
+    expect(through(createGateRun(GR([2, 5, 8])), [[0, 0], [3, 0], [6, 0], [9, 0]]).done).toBe(true);
+    expect(through(createGateRun(GR([8, 5, 2])), [[10, 0], [7, 0], [4, 0], [1, 0]]).done).toBe(true);
+  });
+  it('counts progress gate by gate', () => {
+    const m = createGateRun(GR([2, 5, 8]));
+    expect(through(m, [[0, 0]]).passed).toBe(0);
+    expect(through(m, [[3, 0]])).toMatchObject({ passed: 1, total: 3 });
+    expect(m.state().progress).toBeCloseTo(1 / 3, 12);
+    expect(through(m, [[6, 0]]).passed).toBe(2);
+    expect(through(m, [[9, 0]])).toMatchObject({ passed: 3, done: true, progress: 1 });
+  });
+  it('a gate crossed out of order does not count, the attempt goes on, and later crossings in order still win', () => {
+    const m = createGateRun(GR([2, 5, 8]));
+    const st = through(m, [[3, 0], [6, 0]]);                 // starts after gate 1 and crosses gate 2 first
+    expect(st.passed).toBe(0);
+    expect(st.missed).toEqual([1]);
+    expect(st.done).toBe(false);
+    expect(through(m, [[1, 0]]).passed).toBe(1);             // back through gate 1 (and gate 2 on the way: out of order again)
+    const again = through(m, [[4, 0], [6, 0]]);              // gate 2, now in order
+    expect(again.passed).toBe(2);
+    expect(again.missed).toEqual([]);
+    expect(through(m, [[9, 0]]).done).toBe(true);
+  });
+  it('when one step crosses several gates they are taken in the order the path crosses them', () => {
+    expect(through(createGateRun(GR([2, 5])), [[0, 0], [6, 0]])).toMatchObject({ passed: 2, done: true });   // 2 then 5: in order
+    const rev = through(createGateRun(GR([2, 5])), [[6, 0], [0, 0]]);                                          // 5 then 2: out of order
+    expect(rev.passed).toBe(1);
+    expect(rev.missed).toEqual([1]);
+    expect(rev.done).toBe(false);
+  });
+  it('a path that goes around the end of a gate does not count; one through the gap does', () => {
+    const m = createGateRun(GR([5]));                                  // a wall at x = 5 spanning z from -1 to 1
+    expect(through(m, [[0, 3], [10, 3]]).passed).toBe(0);              // flies above the wall
+    expect(through(createGateRun(GR([5])), [[0, -3], [10, -3]]).passed).toBe(0);   // flies below it
+    expect(through(createGateRun(GR([5])), [[0, 0.9], [10, 0.9]]).done).toBe(true); // crosses within its half-length
+    expect(through(createGateRun(GR([5])), [[0, 1.1], [10, 1.1]]).done).toBe(false); // just outside it
+  });
+  it('a first sample sitting on the far side does not count as a crossing', () => {
+    const m = createGateRun(GR([2]));
+    expect(through(m, [[5, 0]]).passed).toBe(0);            // no previous point yet
+    expect(through(m, [[6, 0]]).passed).toBe(0);            // still no crossing
+  });
+  it('stays done after the last gate', () => {
+    const m = createGateRun(GR([2]));
+    through(m, [[0, 0], [3, 0]]);
+    expect(through(m, [[-5, 0], [10, 0]]).done).toBe(true);
+  });
+  it('flying through all gates wins in flight and the preview delivers on the same step; skipping one does not end the attempt', () => {
+    const sys = station(), mission = { ...GR([-6, -2, 3]), target: 'stn' };
+    const probe = { x: -10, z: 0, vx: 2, vz: 0 };
+    const f = fly(sys, probe, mission);
+    expect(f.outcome.type).toBe('delivered');
+    const pre = predict(sys, probe, { steps: 4000, mission });
+    expect(pre.delivered.i).toBe(f.i);
+    // a probe that misses the middle gate by passing well above it never finishes, and keeps flying
+    const high = { x: -10, z: 5, vx: 2, vz: 0 };
+    const g = fly(sys, high, mission, 12);
+    expect(g.done).toBe(false);
+    expect(g.missionState.passed).toBe(0);
+  });
+  it('a mid-flight preview resumes the gates already passed, including the segment it is standing on', () => {
+    const sys = station(), mission = GR([-6, -2, 3]), probe = { x: -10, z: 0, vx: 2, vz: 0 };
+    const full = predict(sys, probe, { steps: 4000, mission });
+    for (const stop of [1, 2.5, 4.9, 6.1]) {              // just before, on, and after each gate
+      const f = new Flight(sys, probe, { t0: 0, mission });
+      while (f.elapsed < stop) f.advance(1 / 120);
+      const again = predict(sys, f.probe, { startIndex: f.i, steps: 4000, mission, missionResume: f.missionState });
+      expect(again.delivered.i, `stopped at ${stop}`).toBe(full.delivered.i);
+    }
+  });
+  it('is created by createMission and has goal text, progress text and a schema rule', () => {
+    expect(createMission(GR([1, 2])).type).toBe('gate_run');
+    expect(missionGoal(GR([1, 2, 3]))).toBe('fly through 3 gates in order');
+    expect(missionGoal(GR([1]))).toBe('fly through 1 gate in order');
+    expect(describeProgress(GR([1, 2, 3]), { passed: 1, total: 3, missed: [] })).toBe('gate 2 of 3');
+    expect(describeProgress(GR([1, 2, 3]), { passed: 1, total: 3, missed: [2] })).toBe('gate 2 of 3, 1 missed');
+    expect(describeProgress(GR([1]), { done: true, passed: 1, total: 1, missed: [] })).toBe('all 1');
+    const base = LEVELS[0], tgt = 'kepi';
+    expect(validateLevel({ ...base, mission: { type: 'gate_run', target: tgt, gates: [] } }).join('\n')).toMatch(/gate_run needs gates/);
+    expect(validateLevel({ ...base, mission: { type: 'gate_run', target: tgt, gates: [gate(1)] } }).filter((e) => /gate_run|mission/.test(e))).toEqual([]);
+  });
+});

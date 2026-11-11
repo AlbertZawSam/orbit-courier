@@ -1,5 +1,6 @@
 import { DT } from './constants.js';
 import { velAt } from './rails.js';
+import { segmentCrossing, gateEnds } from './geometry.js';
 
 /**
  * Tracks a deliver_orbit mission: win when the probe stays inside the radius band around the
@@ -73,8 +74,34 @@ export function createSoftLanding(mission) {
   };
 }
 
-export function createMission(mission, held0 = 0) {
-  if (mission.type === 'deliver_orbit') return createDeliverOrbit(mission, held0);
+/**
+ * Gate run: fly through every gate (a segment) in order. A gate crossed out of order does not count and does not end
+ * the attempt; the probe may come back and cross it again later. `resume` restores a mid-flight state for previews.
+ */
+export function createGateRun(mission, resume = {}) {
+  const gates = mission.gates.map((g) => ({ g, ends: gateEnds(g) }));
+  let next = resume.passed ?? 0, prev = resume.prev ?? null;
+  const missed = new Set(resume.missed ?? []);
+  return {
+    type: 'gate_run',
+    update(p) {
+      if (next < gates.length && prev) {
+        // every gate crossed during this step, in the order the path actually crossed them
+        const hits = [];
+        gates.forEach((gt, j) => { const t = segmentCrossing(prev, p, gt.ends[0], gt.ends[1]); if (t !== null) hits.push({ j, t }); });
+        hits.sort((a, b) => a.t - b.t || a.j - b.j);
+        for (const { j } of hits) { if (j === next) { next++; missed.delete(j); } else if (j > next) missed.add(j); }
+      }
+      prev = { x: p.x, z: p.z };
+      return this.state();
+    },
+    state: () => ({ done: next >= gates.length, passed: next, total: gates.length, missed: [...missed], prev, progress: next / gates.length }),
+  };
+}
+
+export function createMission(mission, resume = {}) {
+  if (mission.type === 'deliver_orbit') return createDeliverOrbit(mission, resume.held ?? 0);
+  if (mission.type === 'gate_run') return createGateRun(mission, resume);
   if (mission.type === 'rendezvous') return createRendezvous(mission);
   if (mission.type === 'soft_landing') return createSoftLanding(mission);
   throw new Error(`mission type not implemented yet: ${mission.type}`);
