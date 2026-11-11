@@ -9,3 +9,17 @@
 }
 html, body { margin: 0; height: 100%; background: var(--void); color: var(--ivory); overflow: hidden; }
 canvas#stage { display: block; width: 100vw; height: 100vh; }
+
+#hud { position: fixed; inset: 0; pointer-events: none; font-family: ui-serif, Georgia, serif; }
+#hud > * { pointer-events: auto; }
+.hud-panel { position: absolute; top: 16px; left: 16px; padding: 10px 14px; border: 1px solid var(--brass); background: rgba(10, 14, 31, 0.7); min-width: 190px; }
+.hud-row { display: flex; justify-content: space-between; gap: 16px; line-height: 1.6; }
+.hud-label { font-style: italic; color: var(--brass); }
+.hud-num { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }
+.hud-msg { position: absolute; top: 16px; left: 50%; transform: translateX(-50%); font-style: italic; font-size: 1.15rem; text-align: center; }
+.hud-buttons { position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; }
+.hud-buttons button { font: inherit; color: var(--ivory); background: rgba(10, 14, 31, 0.8); border: 1px solid var(--brass); padding: 8px 18px; cursor: pointer; }
+.hud-buttons button:hover:not(:disabled) { background: var(--haze); }
+.hud-buttons button:disabled { opacity: 0.4; cursor: default; }
+.hud-buttons button:focus-visible { outline: 2px solid var(--safe); outline-offset: 2px; }
+.hud-help { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 0.85rem; color: var(--brass); font-style: italic; }

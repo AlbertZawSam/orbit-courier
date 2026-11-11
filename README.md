@@ -8,7 +8,7 @@ A 3D space-delivery game. Launch a small probe from a planet, plan burns on a li
 - **Procedural everything.** No image, audio, or font files: graphics are geometry, shaders, and canvas textures; sound is synthesized with Web Audio.
 - **Preview equals flight.** The trajectory preview and the live flight call the same `step` function, and a test enforces it.
 
-> **Status: early development.** Stages 0-1 (scaffold, single-file build, offline checker, pure simulation) are done. The simulation, levels, graphics, audio, Flight School tutorial, and Navigator are being built in the stages listed in [CLAUDE.md](CLAUDE.md). Sections below describe the target design from [AGENTS.md](AGENTS.md); the roadmap table shows what exists today.
+> **Status: early development.** Stages 0-2 (scaffold, single-file build, offline checker, pure simulation, playable 3D sandbox) are done. The simulation, levels, graphics, audio, Flight School tutorial, and Navigator are being built in the stages listed in [CLAUDE.md](CLAUDE.md). Sections below describe the target design from [AGENTS.md](AGENTS.md); the roadmap table shows what exists today.
 
 ## Quick start
 
@@ -112,7 +112,7 @@ Work proceeds in stages; each stage ends green on `npm test`, and each session e
 
 | Session | Focus | State |
 |---|---|---|
-| 1 | Playable core and coach: sim, 3D scene, burn nodes, L1-L3, Navigator | Stages 0-1 done (scaffold, pure sim) |
+| 1 | Playable core and coach: sim, 3D scene, burn nodes, L1-L3, Navigator | Stages 0-2 done (scaffold, pure sim, 3D scene and aiming) |
 | 2 | Baseline graphics and audio | Not started |
 | 3 | 12 levels, progression, Flight School T1-T4, coach completion | Not started |
 | 4 | Premium graphics and audio (eclipses, lensing, spatial sound, orchestra) | Not started |

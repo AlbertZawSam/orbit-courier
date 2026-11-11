@@ -2,6 +2,7 @@ import { DEFAULT_PREVIEW_STEPS, DT } from './constants.js';
 import { step, timeAt } from './gravity.js';
 import { dominantBody } from './probe.js';
 import { velAt } from './rails.js';
+import { detectOutcome } from './outcome.js';
 
 /** Two-body orbital elements of the probe relative to `body` at time t. */
 export function elementsAbout(p, body, t, byId) {
@@ -41,13 +42,9 @@ export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS } =
     const t = timeAt(t0, i + 1);
     points.push({ i: i + 1, t, x: p.x, z: p.z });
     note(p, t, i + 1);
-    for (const b of bodies) {
-      if (!(b.radius > 0)) continue;
-      const [bx, bz] = b.pos(t);
-      if (Math.hypot(p.x - bx, p.z - bz) < b.radius) { crash = { bodyId: b.id, t, i: i + 1, x: p.x, z: p.z }; break; }
-    }
-    if (crash) break;
-    if (Math.hypot(p.x, p.z) > bounds) { lost = { t, i: i + 1 }; break; }
+    const out = detectOutcome(p, t, bodies, bounds);
+    if (out?.type === 'crash') { crash = { bodyId: out.bodyId, t, i: i + 1, x: out.x, z: out.z }; break; }
+    if (out?.type === 'lost') { lost = { t, i: i + 1 }; break; }
   }
   const tEnd = points[points.length - 1].t;
   const dom = dominantBody(p.x, p.z, tEnd, bodies);
