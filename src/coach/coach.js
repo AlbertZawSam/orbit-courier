@@ -2,6 +2,7 @@ import { createRetriever } from './retrieve.js';
 import { detectCalc, answerCalc } from './calc-intent.js';
 import { summarize } from './stats.js';
 import { buildFindings } from './findings.js';
+import { missionGoal } from '../sim/missionText.js';
 
 const MAX_WORDS = 120;
 // Split on sentence ends only (a full stop followed by a capital), so decimals like 6.4 stay whole.
@@ -91,8 +92,8 @@ export function createCoach({ chunks, getContext }) {
 
   function explainLevel(ctx) {
     const lv = chunks.find((c) => c.id.startsWith('LV-') && c.levels.includes(ctx.level.id));
-    const m = ctx.level.mission, tName = ctx.sys.byId[m.target].name ?? m.target;
-    const goal = `Stay between ${m.rMin} and ${m.rMax} units of ${tName} for ${m.holdSeconds} s. You have ${ctx.level.fuel} fuel and ${ctx.level.maxNodes} burn node${ctx.level.maxNodes === 1 ? '' : 's'}; par is ${ctx.level.par.fuel} fuel.`;
+    const m = ctx.level.mission;
+    const goal = `Goal: ${missionGoal(m, (id) => ctx.sys.byId[id]?.name ?? id)}. You have ${ctx.level.fuel} fuel and ${ctx.level.maxNodes} burn node${ctx.level.maxNodes === 1 ? '' : 's'}; par is ${ctx.level.par.fuel} fuel.`;
     if (!lv) return finish('explain_level', { short: goal, launches: logLine(ctx) }, cite(ctx.level.tags.join(' '), ctx, 1));
     const { body, tryLine } = split(lv);
     return finish('explain_level', { short: `${goal} ${clip(sentences(body).slice(1, 3).join(' '), 45)}`, tryLine, launches: logLine(ctx) }, [lv, ...cite('orbit band hold mission', ctx, 1)]);

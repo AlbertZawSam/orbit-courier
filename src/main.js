@@ -33,6 +33,7 @@ import { velAt } from './sim/rails.js';
 import { dominantBody } from './sim/probe.js';
 import { predict } from './sim/predict.js';
 import { scoreAttempt } from './sim/scoring.js';
+import { missionGoal, describeProgress } from './sim/missionText.js';
 import { Flight } from './game/flight.js';
 import { Plan } from './game/plan.js';
 import { SlowMo } from './game/slowmo.js';
@@ -127,8 +128,7 @@ function loadLevel(i) {
   planEvents.sync();
   coach.resetHints(level.id);
   bus.emit('level_start', { levelId: level.id, mode: 'easy', tutorial: false });
-  const m = level.mission;
-  hud.set({ mission: `${level.name}: orbit ${bodyName(m.target)} at ${m.rMin}-${m.rMax} for ${m.holdSeconds} s` });
+  hud.set({ mission: `${level.name}: ${missionGoal(level.mission, bodyName)}` });
   cam.snap((px0 + tx) / 2, (pz0 + tz) / 2);
   reset();
 }
@@ -157,7 +157,7 @@ function changed() {
   if (phase === 'planning') {
     const [px, pz] = pad.pos(t0);
     probeView.setAim({ x: px, z: pz }, plan.aim.angle, 0.5 + plan.aim.power * AIM_RANGE);
-    hud.set({ speed: relSpeed(launchState(), t0).toFixed(2), progress: '0%' });
+    hud.set({ speed: relSpeed(launchState(), t0).toFixed(2), progress: describeProgress(level.mission, null) });
     hud.message(pred.delivered ? `This launch delivers after ${(pred.delivered.t - t0).toFixed(1)} s` : pred.crash ? `This launch hits ${bodyName(pred.crash.bodyId)} after ${(pred.crash.t - t0).toFixed(1)} s` : pred.lost ? 'This launch leaves the map' : 'Aim, add burn nodes if needed, then launch');
   }
 }
@@ -264,10 +264,10 @@ stage.renderer.setAnimationLoop((now) => {
       flight.advance(dt, scale);
       sinceReplan += dt;
       if (phase === 'flying' && sinceReplan > 0.2) recompute();
-      hud.set({ speed: relSpeed(flight.probe, flight.t).toFixed(2), progress: `${Math.round((flight.missionState?.progress ?? 0) * 100)}%`, slow: slow.active ? `${slow.left.toFixed(1)} s (on)` : `${slow.left.toFixed(1)} s` });
+      hud.set({ speed: relSpeed(flight.probe, flight.t).toFixed(2), progress: describeProgress(level.mission, flight.missionState), slow: slow.active ? `${slow.left.toFixed(1)} s (on)` : `${slow.left.toFixed(1)} s` });
     } else if (phase === 'replaying') {
       replayFlight.advance(dt);
-      hud.set({ speed: relSpeed(replayFlight.probe, replayFlight.t).toFixed(2), progress: `${Math.round((replayFlight.missionState?.progress ?? 0) * 100)}%` });
+      hud.set({ speed: relSpeed(replayFlight.probe, replayFlight.t).toFixed(2), progress: describeProgress(level.mission, replayFlight.missionState) });
       if (replayFlight.done && !replayEnding) { replayEnding = true; endReplay(); }
     }
     bodies.update(live.t);

@@ -19,6 +19,10 @@ export function validateLevel(l) {
   need(ids.has(l.launch?.padBody), 'launch.padBody must be a body');
   need(l.launch?.maxSpeed > 0, 'launch.maxSpeed must be positive');
   need(l.mission && ids.has(l.mission.target), 'mission.target must be a body');
+  const m = l.mission ?? {};
+  if (m.type === 'deliver_orbit') need(m.rMin > 0 && m.rMax > m.rMin && m.holdSeconds > 0, 'deliver_orbit needs rMin < rMax and holdSeconds');
+  else if (m.type === 'rendezvous') need(m.captureDist > 0 && m.maxRelSpeed > 0, 'rendezvous needs captureDist and maxRelSpeed');
+  else need(false, `unknown mission type "${m.type}"`);
   need(l.fuel >= 0 && Number.isInteger(l.maxNodes) && l.maxNodes >= 0, 'fuel and maxNodes required');
   need(l.slowMoSeconds >= 0, 'slowMoSeconds required');
   need(l.timeLimit === null || l.timeLimit > 0, 'timeLimit must be null or positive');
