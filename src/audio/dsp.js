@@ -25,7 +25,7 @@ export function inScale(freq, root = ROOT_MIDI) {
 }
 
 /** Gravity hum: heavy bodies drone low, small ones sing high. */
-export const HUM_BASE = { star: 33, gas: 36, rocky: 45, ice: 52, moon: 57, station: 60 };
+export const HUM_BASE = { dark: 28, star: 33, gas: 36, rocky: 45, ice: 52, moon: 57, station: 60 };
 /** Pitch rises with the log of the pull (about 8 semitones per decade above 0.05), quantized to the scale. */
 export function humMidi(accel, kind, root = ROOT_MIDI) {
   const base = HUM_BASE[kind] ?? 52;

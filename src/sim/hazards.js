@@ -91,6 +91,16 @@ export function createSolarWind(spec, byId) {
   };
 }
 
+/**
+ * Dark mass: a tiny body with a huge pull. It is a real body (gravity, crashes, previews and sound all work as for any
+ * other), fixed at (x, z) or on rails if `orbit` is given. The level strong assist or death comes from its mu.
+ */
+export const DARK_MASS_RADIUS = 0.12;
+export function darkMassBody(spec) {
+  const { id = 'dark', name = 'Dark mass', mu, radius = DARK_MASS_RADIUS, x = 0, z = 0, orbit = null } = spec;
+  return orbit ? { id, name, kind: 'dark', mu, radius, orbit } : { id, name, kind: 'dark', mu, radius, at: [x, z] };
+}
+
 /** Build hazard objects from level data. Dark masses are bodies, not hazards (see darkMassBody). */
 export function createHazards(specs = [], byId) {
   const out = [];

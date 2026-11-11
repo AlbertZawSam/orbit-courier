@@ -52,6 +52,7 @@ export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS, no
   note(p, points[0].t, startIndex);
   for (let k = 0; k < steps; k++) {
     const i = startIndex + k;
+    const before = { x: p.x, z: p.z, t: timeAt(t0, i) };
     const r = advanceProbe(p, i, t0, sys, nodeMap);
     p = r.p;
     for (const b of r.burns) { nodeInfo.push({ idx: i, t: timeAt(t0, i), ...b }); fuelUsed += b.cost; }
@@ -59,7 +60,7 @@ export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS, no
     points.push({ i: i + 1, t, x: p.x, z: p.z });
     note(p, t, i + 1);
     if (crash || lost) continue; // ghost mode: already ended, keep drawing
-    const out = detectOutcome(p, t, bodies, bounds, { landing, byId, hazards: sys.hazards ?? [] });
+    const out = detectOutcome(p, t, bodies, bounds, { landing, byId, hazards: sys.hazards ?? [], prev: before });
     if (out?.type === 'landed') { delivered = { t, i: i + 1, x: p.x, z: p.z, how: 'landed' }; break; }
     if (out?.type === 'crash') { crash = { bodyId: out.bodyId, t, i: i + 1, x: out.x, z: out.z }; if (!ghost) break; }
     else if (out?.type === 'lost') { lost = { t, i: i + 1 }; if (!ghost) break; }

@@ -1,9 +1,15 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystem } from '../src/sim/rails.js';
-import { createAsteroidField, createSolarWind, createHazards, rng, BUCKET_WIDTH } from '../src/sim/hazards.js';
+import { createAsteroidField, createSolarWind, createHazards, darkMassBody, DARK_MASS_RADIUS, rng, BUCKET_WIDTH } from '../src/sim/hazards.js';
+import { posAt } from '../src/sim/rails.js';
+import { vCirc } from '../src/sim/calc.js';
+import { step, timeAt } from '../src/sim/gravity.js';
+import { audioFrame } from '../src/audio/state.js';
+import { humFreq } from '../src/audio/dsp.js';
 import { accel } from '../src/sim/gravity.js';
 import { validateLevel } from '../src/levels/schema.js';
 import { createMission } from '../src/sim/missions.js';
+import { closestOnSegment } from '../src/sim/geometry.js';
 import { detectOutcome } from '../src/sim/outcome.js';
 import { predict } from '../src/sim/predict.js';
 import { Flight } from '../src/game/flight.js';
@@ -203,5 +209,167 @@ describe('solar wind', () => {
     expect(validateLevel({ ...base, hazards: [{ type: 'solar_wind', radius: 0, strength: 1 }] }).join('\n')).toMatch(/solar_wind needs/);
     expect(validateLevel({ ...base, hazards: [{ type: 'asteroids', parent: 'nowhere', rIn: 5, rOut: 3, count: 0 }] }).join('\n')).toMatch(/asteroids need/);
     expect(validateLevel({ ...base, hazards: [{ type: 'comet' }] }).join('\n')).toMatch(/unknown hazard type "comet"/);
+  });
+});
+
+describe('dark mass', () => {
+  const MU = 200;
+  const world = (extra = {}) => Object.assign(buildSystem([darkMassBody({ mu: MU, x: 0, z: 0, ...extra })]), { bounds: 500, hazards: [] });
+  /** Fly past the mass on a straight-ish line with impact parameter b; returns the deflection angle of the velocity. */
+  const deflection = (b, speed = 6) => {
+    let p = { x: -30, z: b, vx: speed, vz: 0 }, t = 0, crashed = false;
+    const sys = world();
+    for (let i = 0; i < 12000; i++) {
+      const prev = { x: p.x, z: p.z, t: timeAt(0, i) };
+      p = step(p, timeAt(0, i), sys.bodies, []);
+      t = timeAt(0, i + 1);
+      if (detectOutcome(p, t, sys.bodies, 500, { prev })?.type === 'crash') { crashed = true; break; }
+      if (p.x > 30) break;
+    }
+    return { crashed, angle: Math.abs(Math.atan2(p.vz, p.vx)) };
+  };
+
+  it('is a tiny body with a huge pull, fixed where it is put', () => {
+    const d = darkMassBody({ mu: MU, x: 12, z: -3 });
+    expect(d).toMatchObject({ kind: 'dark', mu: MU, radius: DARK_MASS_RADIUS, name: 'Dark mass' });
+    expect(DARK_MASS_RADIUS).toBeLessThan(0.3);
+    expect(posAt(d, 5, {})).toEqual([12, -3]);                 // never moves
+    expect(posAt(d, 500, {})).toEqual([12, -3]);
+    expect(posAt({ id: 'x', mu: 1, radius: 1 }, 0, {})).toEqual([0, 0]); // other fixed bodies still default to the origin
+    const orbiting = darkMassBody({ mu: MU, orbit: { a: 20, e: 0, phase: 0, parent: 'sun' } });
+    expect(orbiting.at).toBeUndefined();
+    expect(orbiting.orbit.parent).toBe('sun');
+  });
+  it('is added to the level system as a body, so gravity, crashes and the preview all see it', () => {
+    const level = { ...LEVELS[0], hazards: [{ type: 'dark_mass', mu: 150, x: 40, z: 40 }] };
+    const sys = buildLevelSystem(level);
+    expect(sys.byId.dark).toBeTruthy();
+    expect(sys.bodies).toHaveLength(LEVELS[0].system.bodies.length + 1);
+    expect(sys.hazards).toEqual([]);
+    expect(sys.byId.dark.pos(3)).toEqual([40, 40]);
+    expect(buildLevelSystem(LEVELS[0]).byId.dark).toBeUndefined();
+  });
+  it('pulls hard: the closer a probe passes, the more its path bends (strong assist)', () => {
+    // Passes closer than about 2 units reach tens of units per second, faster than the fixed 1/120 s step resolves, so
+    // their exact bend is only as good as the integrator (preview and flight still agree: see below). Level design keeps
+    // intended assists in the range checked here.
+    const angles = [20, 10, 6, 4, 3].map((b) => deflection(b));
+    for (const a of angles) expect(a.crashed).toBe(false);
+    for (let i = 1; i < angles.length; i++) expect(angles[i].angle).toBeGreaterThan(angles[i - 1].angle);
+    expect(angles.at(-1).angle).toBeGreaterThan(1.5);            // a close pass swings it round by more than 85 degrees
+  });
+  it('flybys conserve energy and angular momentum through a strong pull, for passes the step can resolve', () => {
+    const sys = world();
+    for (const b of [10, 6, 4, 3]) {
+      let p = { x: -30, z: b, vx: 6, vz: 0 };
+      const energy = (q) => (q.vx ** 2 + q.vz ** 2) / 2 - MU / Math.sqrt(q.x ** 2 + q.z ** 2 + 1e-4), L = (q) => q.x * q.vz - q.z * q.vx;
+      const e0 = energy(p), l0 = L(p);
+      for (let i = 0; i < 12000 && p.x < 30; i++) p = step(p, timeAt(0, i), sys.bodies, []);
+      expect(Math.abs((energy(p) - e0) / e0), `energy, b=${b}`).toBeLessThan(0.03);
+      expect(Math.abs((L(p) - l0) / l0), `angular momentum, b=${b}`).toBeLessThan(0.03);
+    }
+  });
+  it('a path through the body is death: a crash at its tiny radius, reported as the dark mass', () => {
+    const sys = world(), probe = { x: -30, z: 0, vx: 6, vz: 0 };
+    const f = new Flight(sys, probe, { t0: 0 });
+    while (!f.done && f.elapsed < 20) f.advance(0.25);
+    expect(f.outcome).toMatchObject({ type: 'crash', bodyId: 'dark' });
+    expect(deflection(0).crashed).toBe(true);
+    expect(deflection(0.05).crashed).toBe(true);
+  });
+  it('a fast probe cannot tunnel through it between two steps', () => {
+    // At 60 units/s one step is 0.5 units, more than four times the body's diameter.
+    const sys = world(), a = { x: -0.25, z: 0, t: 0 }, b = { x: 0.25, z: 0, vx: 60, vz: 0 };
+    expect(detectOutcome(b, 0, sys.bodies, 500)).toBeNull();                               // end point alone sees nothing
+    expect(detectOutcome(b, 0, sys.bodies, 500, { prev: a })).toMatchObject({ type: 'crash', bodyId: 'dark' });
+    const miss = detectOutcome({ x: 0.25, z: 0.5, vx: 60, vz: 0 }, 0, sys.bodies, 500, { prev: { x: -0.25, z: 0.5, t: 0 } });
+    expect(miss).toBeNull();                                                                // a segment passing 0.5 away is safe
+    const hit = detectOutcome(b, 0, sys.bodies, 500, { prev: a });
+    expect(Math.hypot(hit.x, hit.z)).toBeLessThan(DARK_MASS_RADIUS);                        // reported at the closest point on the path
+  });
+  it('the preview matches the flight past it, step for step', () => {
+    const sys = world(), probe = { x: -30, z: 3, vx: 6, vz: 0 };
+    const pre = predict(sys, probe, { steps: 900 });
+    const f = new Flight(sys, probe, { t0: 0 });
+    while (f.i < 900 && !f.done) f.advance(1 / 60);
+    const ref = predict(sys, probe, { steps: f.i }).points.at(-1);
+    expect(Math.abs(ref.x - f.probe.x)).toBeLessThan(1e-9);
+    expect(Math.abs(ref.z - f.probe.z)).toBeLessThan(1e-9);
+    expect(pre.closest.dark.dist).toBeGreaterThan(0.5);
+  });
+  it('holds a stable circular orbit with small energy drift despite the strong pull', () => {
+    const sys = world(), r = 4;
+    let p = { x: r, z: 0, vx: 0, vz: vCirc(MU, r) };
+    const energy = (q) => (q.vx ** 2 + q.vz ** 2) / 2 - MU / Math.sqrt(q.x ** 2 + q.z ** 2 + 1e-4);
+    const e0 = energy(p);
+    let worst = 0;
+    for (let i = 0; i < 20 * 120; i++) { p = step(p, timeAt(0, i), sys.bodies, []); if (i % 50 === 0) worst = Math.max(worst, Math.abs((energy(p) - e0) / e0)); }
+    expect(worst).toBeLessThan(0.005);
+  });
+  it('is finite and bounded even if the probe starts right on top of it', () => {
+    const sys = world();
+    const p = step({ x: 0, z: 0, vx: 0, vz: 0 }, 0, sys.bodies, []);
+    expect(Number.isFinite(p.x) && Number.isFinite(p.vx)).toBe(true);
+  });
+  it('is heard as a deep sub tone, lower than any other body', () => {
+    const sys = Object.assign(buildSystem([{ id: 'home', kind: 'rocky', mu: 20, radius: 0.8, at: [20, 0] }, darkMassBody({ mu: MU, x: 0, z: 0 })]), { hazards: [] });
+    const f = audioFrame(sys, { x: 3, z: 0, vx: 0, vz: 0 }, 0, 'home');
+    expect(f.hum[0].id).toBe('dark');                            // by far the strongest pull
+    expect(humFreq(f.hum[0].accel, 'dark')).toBeLessThan(humFreq(f.hum[0].accel, 'star'));
+    expect(humFreq(1, 'dark')).toBeLessThan(humFreq(1, 'gas'));
+  });
+  it('schema: needs a positive mu and a free id', () => {
+    const base = LEVELS[0];
+    expect(validateLevel({ ...base, hazards: [{ type: 'dark_mass', mu: 100, x: 5, z: 5 }] }).filter((e) => /dark|hazard/.test(e))).toEqual([]);
+    expect(validateLevel({ ...base, hazards: [{ type: 'dark_mass', mu: 0 }] }).join('\n')).toMatch(/dark_mass needs/);
+    expect(validateLevel({ ...base, hazards: [{ type: 'dark_mass', mu: 100, id: 'home' }] }).join('\n')).toMatch(/dark_mass needs/);
+  });
+});
+
+describe('swept contact', () => {
+  const P = (x, z) => ({ x, z });
+  const PT = (x, z) => ({ x, z, t: 0 });
+  it('finds the closest point on a segment, clamped to its ends, and handles a zero-length segment', () => {
+    expect(closestOnSegment(P(0, 0), P(10, 0), P(4, 3))).toEqual({ x: 4, z: 0, dist: 3 });
+    expect(closestOnSegment(P(0, 0), P(10, 0), P(-5, 0))).toEqual({ x: 0, z: 0, dist: 5 });
+    expect(closestOnSegment(P(0, 0), P(10, 0), P(14, 3)).dist).toBeCloseTo(5, 12);
+    expect(closestOnSegment(P(2, 2), P(2, 2), P(5, 6)).dist).toBeCloseTo(5, 12);
+  });
+  it('without a previous position the old end-point test is unchanged', () => {
+    const sys = Object.assign(buildSystem([{ id: 'm', kind: 'moon', mu: 0, radius: 1 }]), { bounds: 500 });
+    expect(detectOutcome({ x: 0.5, z: 0, vx: 0, vz: 0 }, 0, sys.bodies).type).toBe('crash');
+    expect(detectOutcome({ x: 3, z: 0, vx: 0, vz: 0 }, 0, sys.bodies)).toBeNull();
+  });
+  it('a swept path that only grazes outside the radius is safe, and one that clips it crashes', () => {
+    const sys = Object.assign(buildSystem([{ id: 'm', kind: 'moon', mu: 0, radius: 1 }]), { bounds: 500 });
+    const run = (z) => detectOutcome({ x: 5, z, vx: 9, vz: 0 }, 0, sys.bodies, 500, { prev: PT(-5, z) });
+    expect(run(1.01)).toBeNull();
+    expect(run(0.99)).toMatchObject({ type: 'crash' });
+  });
+  it('landing still works with swept contact: the touchdown point is on the path and the speed is judged as before', () => {
+    const sys = Object.assign(buildSystem([{ id: 'm', kind: 'moon', mu: 0, radius: 1 }]), { bounds: 500 });
+    const out = detectOutcome({ x: -0.9, z: 0, vx: 0.5, vz: 0 }, 0, sys.bodies, 500, { landing: { target: 'm', maxLandSpeed: 1 }, byId: sys.byId, prev: PT(-1.2, 0) });
+    expect(out).toMatchObject({ type: 'landed', speed: 0.5 });
+  });
+});
+
+describe('swept contact in the body\'s own frame', () => {
+  it('does not mistake a launch from a fast-moving planet for a crash (the planet moves further per step than the pad clearance)', () => {
+    const sun = { id: 'sun', kind: 'star', mu: 1000, radius: 2 };
+    const home = { id: 'home', kind: 'rocky', mu: 20, radius: 0.8, orbit: { a: 30, e: 0, phase: 0, parent: 'sun' } };
+    const sys = Object.assign(buildSystem([sun, home]), { bounds: 500, hazards: [] });
+    const [hx, hz] = sys.byId.home.pos(0), [vx, vz] = [0, 5.7735];
+    // the pad is 0.04 above the surface; Home itself moves ~0.048 per step. Launch 'backwards' so the new Home position is nearest.
+    const probe = { x: hx, z: hz + 0.8 * 1.05, vx, vz: vz + 5 };
+    const pre = predict(sys, probe, { steps: 60 });
+    expect(pre.crash).toBeNull();
+  });
+  it('still catches a genuine hit on a moving body', () => {
+    const sun = { id: 'sun', kind: 'star', mu: 1000, radius: 2 };
+    const home = { id: 'home', kind: 'rocky', mu: 20, radius: 0.8, orbit: { a: 30, e: 0, phase: 0, parent: 'sun' } };
+    const sys = Object.assign(buildSystem([sun, home]), { bounds: 500, hazards: [] });
+    const [hx, hz] = sys.byId.home.pos(0);
+    const probe = { x: hx, z: hz + 4, vx: 0, vz: 5.7735 - 3 };            // heading down onto Home at 3 units/s relative
+    expect(predict(sys, probe, { steps: 600 }).crash?.bodyId).toBe('home');
   });
 });

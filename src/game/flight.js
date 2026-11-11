@@ -33,6 +33,7 @@ export class Flight {
     let n = 0;
     while (this.acc >= DT && !this.done && n < 2000) {
       this.acc -= DT; n++;
+      const before = { x: this.probe.x, z: this.probe.z, t: this.t };
       const r = advanceProbe(this.probe, this.i, this.t0, this.sys, this.nodeMap);
       this.probe = r.p;
       for (const b of r.burns) { this.fuelUsed += b.cost; const dx = b.dv[0] * b.pro[0] + b.dv[1] * b.rad[0], dz = b.dv[0] * b.pro[1] + b.dv[1] * b.rad[1], len = Math.hypot(dx, dz) || 1;
@@ -43,7 +44,7 @@ export class Flight {
         const [bx, bz] = b.pos(t), d = Math.hypot(this.probe.x - bx, this.probe.z - bz);
         if (!(d >= this.closest[b.id])) this.closest[b.id] = d;
       }
-      const out = detectOutcome(this.probe, t, this.sys.bodies, this.sys.bounds ?? Infinity, { landing: this.landing, byId: this.sys.byId, hazards: this.sys.hazards ?? [] });
+      const out = detectOutcome(this.probe, t, this.sys.bodies, this.sys.bounds ?? Infinity, { landing: this.landing, byId: this.sys.byId, hazards: this.sys.hazards ?? [], prev: before });
       if (out?.type === 'landed') {
         this.missionState = { done: true, progress: 1, altitude: 0, speed: out.speed };
         this.outcome = { type: 'delivered', how: 'landed', speed: out.speed, t };

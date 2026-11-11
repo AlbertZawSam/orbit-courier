@@ -1,11 +1,13 @@
 import { buildSystem } from '../sim/rails.js';
 import { launchProbe } from '../sim/probe.js';
-import { createHazards } from '../sim/hazards.js';
+import { createHazards, darkMassBody } from '../sim/hazards.js';
 import { Flight } from './flight.js';
 
 /** Fresh simulation system for a level (bodies are copied so levels stay plain data). */
 export function buildLevelSystem(level) {
-  const sys = buildSystem(level.system.bodies.map((b) => ({ ...b })));
+  const bodySpecs = level.system.bodies.map((b) => ({ ...b }));
+  for (const h of level.hazards ?? []) if (h.type === 'dark_mass') bodySpecs.push(darkMassBody(h));
+  const sys = buildSystem(bodySpecs);
   return Object.assign(sys, { hazards: createHazards(level.hazards, sys.byId), bounds: level.bounds ?? 120 });
 }
 

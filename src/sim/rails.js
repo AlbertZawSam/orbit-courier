@@ -10,7 +10,7 @@ export function solveKepler(M, e) {
 
 /** Position of a body on rails at time t. `byId` maps ids to body specs (needs `mu` and `orbit`). */
 export function posAt(body, t, byId) {
-  if (!body.orbit) return [0, 0];
+  if (!body.orbit) return body.at ?? [0, 0]; // a fixed body sits at `at` (the origin by default)
   const { a, e = 0, phase = 0, parent, dir = 1 } = body.orbit;
   const n = Math.sqrt(byId[parent].mu / a ** 3);
   const E = solveKepler(phase + dir * n * t, e);

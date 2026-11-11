@@ -18,6 +18,7 @@ export function validateLevel(l) {
   need(Array.isArray(l.hazards), 'hazards must be an array');
   for (const h of l.hazards ?? []) {
     if (h.type === 'asteroids') need(ids.has(h.parent) && h.rIn > 0 && h.rOut > h.rIn && h.count > 0, 'asteroids need a parent body, rIn < rOut and a count');
+    else if (h.type === 'dark_mass') need(h.mu > 0 && !ids.has(h.id ?? 'dark') && (h.radius ?? 0.12) > 0, 'dark_mass needs a positive mu and an id not used by a body');
     else if (h.type === 'solar_wind') need(h.radius > 0 && Number.isFinite(h.strength), 'solar_wind needs radius and strength');
     else need(false, `unknown hazard type "${h.type}"`);
   }

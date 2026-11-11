@@ -81,6 +81,14 @@ void main() {
   ${FINISH}
 }`;
 
+const DARK = HEAD + /* glsl */ `
+void main() {
+  vec3 N = normalize(vN), V = normalize(cameraPosition - vW);
+  float rim = pow(1.0 - max(dot(N, V), 0.0), 3.0);
+  vec3 col = toLinear(vec3(0.45, 0.25, 0.8)) * rim * 1.4 + vec3(0.0005);
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
 const STAR = HEAD + /* glsl */ `
 void main() {
   vec3 N = normalize(vN), V = normalize(cameraPosition - vW), q = normalize(vObj);
@@ -124,6 +132,7 @@ const LOOKS = {
   gas:    { frag: GAS,   a: C(0xb9895b), b: C(0xe7d2a8), c: C(0x8f4f35), spin: 0.2,  atm: [0xe9c999, 0.5] },
   ice:    { frag: ICE,   a: C(0xb9dcee), b: C(0xf1fbff), c: C(0x5d93b5), spin: 0.08, atm: [0xa8e6ff, 0.6] },
   station:{ frag: MOON,  a: C(0xb8b0a2), b: C(0xefe8d8), c: C(0xffffff), spin: 0.3,  atm: null },
+  dark:   { frag: DARK,  a: C(0x000000), b: C(0x000000), c: C(0x000000), spin: 0,    atm: null },
 };
 
 export const OCTAVES = { lit: 2, fewer: 3, full: 5 };
