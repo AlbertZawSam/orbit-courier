@@ -23,3 +23,6 @@ canvas#stage { display: block; width: 100vw; height: 100vh; }
 .hud-buttons button:disabled { opacity: 0.4; cursor: default; }
 .hud-buttons button:focus-visible { outline: 2px solid var(--safe); outline-offset: 2px; }
 .hud-help { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 0.85rem; color: var(--brass); font-style: italic; }
+.hud-nodes { margin: 6px 0 0; padding-left: 20px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.hud-nodes li.sel { color: var(--cargo); }
+.hud-help { max-width: 90vw; text-align: center; }

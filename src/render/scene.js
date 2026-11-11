@@ -31,6 +31,7 @@ export function createCamera(camera) {
   return {
     setTarget(x, z) { goal.set(x, 0, z); },
     snap(x, z) { goal.set(x, 0, z); target.copy(goal); },
+    get dist() { return dist; },
     zoom(f) { goalDist = Math.min(90, Math.max(6, goalDist * f)); },
     update(dt) {
       const k = 1 - Math.exp(-dt * 4);

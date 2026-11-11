@@ -9,5 +9,7 @@ export const sandbox = {
   bounds: 120,
   launch: { padBody: 'home', maxSpeed: 7 },
   mission: { type: 'deliver_orbit', target: 'kepi', rMin: 0.8, rMax: 2.0, holdSeconds: 4 },
-  fuel: 10,
+  fuel: 2,
+  maxNodes: 3,
+  slowMoSeconds: 6,
 };
