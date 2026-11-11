@@ -28,7 +28,7 @@ export function createBodies(scene, bodies, { reducedMotion = () => false } = {}
     if (b.kind === 'star') {
       group.add(Object.assign(new THREE.PointLight(0xfff2d6, 4, 0, 0), { name: 'sunlight' }));
       texture = coronaTexture();
-      corona = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+      corona = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0.65 }));
       corona.scale.setScalar(b.radius * 6);
       group.add(corona);
     }

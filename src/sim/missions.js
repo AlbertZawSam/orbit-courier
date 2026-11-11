@@ -4,9 +4,9 @@ import { DT } from './constants.js';
  * Tracks a deliver_orbit mission: win when the probe stays inside the radius band around the
  * target for `holdSeconds` (default 4) of continuous sim time. Leaving the band resets the hold.
  */
-export function createDeliverOrbit(mission) {
+export function createDeliverOrbit(mission, held0 = 0) {
   const { target, rMin, rMax, holdSeconds = 4 } = mission;
-  let held = 0, done = false;
+  let held = held0, done = false;
   return {
     type: 'deliver_orbit',
     update(p, t, byId) {
@@ -21,7 +21,7 @@ export function createDeliverOrbit(mission) {
   };
 }
 
-export function createMission(mission) {
-  if (mission.type === 'deliver_orbit') return createDeliverOrbit(mission);
+export function createMission(mission, held0 = 0) {
+  if (mission.type === 'deliver_orbit') return createDeliverOrbit(mission, held0);
   throw new Error(`mission type not implemented yet: ${mission.type}`);
 }

@@ -34,7 +34,8 @@ export class Flight {
       this.acc -= DT; n++;
       const r = advanceProbe(this.probe, this.i, this.t0, this.sys, this.nodeMap);
       this.probe = r.p;
-      for (const b of r.burns) { this.fuelUsed += b.cost; this.bus?.emit('node_burn', { t: this.t, dv: b.dv, cost: b.cost }); }
+      for (const b of r.burns) { this.fuelUsed += b.cost; const dx = b.dv[0] * b.pro[0] + b.dv[1] * b.rad[0], dz = b.dv[0] * b.pro[1] + b.dv[1] * b.rad[1], len = Math.hypot(dx, dz) || 1;
+        this.bus?.emit('node_burn', { t: this.t, dv: b.dv, cost: b.cost, x: b.x, z: b.z, dir: [dx / len, dz / len] }); }
       this.i++;
       const t = this.t;
       for (const b of this.sys.bodies) {

@@ -114,7 +114,7 @@ Work proceeds in stages; each stage ends green on `npm test`, and each session e
 | Session | Focus | State |
 |---|---|---|
 | 1 | Playable core and coach: sim, 3D scene, burn nodes, L1-L3, Navigator | Done and verified |
-| 2 | Baseline graphics and audio | In progress: Stages 7-8 done (bloom, quality tiers, procedural planets, nebula sky, star corona) |
+| 2 | Baseline graphics and audio | In progress: Stages 7-9 done (bloom, quality tiers, procedural planets and sky, trajectory ribbon, probe, effects) |
 | 3 | 12 levels, progression, Flight School T1-T4, coach completion | Not started |
 | 4 | Premium graphics and audio (eclipses, lensing, spatial sound, orchestra) | Not started |
 | 5 | Window map, planner, tugs, relay, flight report, audio-only mode, Flight School T5-T6 | Not started |

@@ -100,7 +100,9 @@ export function hitTest(plan, pred, pt, u, t0 = 0) {
     if (info && near(info.x, info.z, 0.8 * u)) return { kind: 'node', node: i };
   }
   let best = null, bestD = 0.6 * u;
+  const lastI = pred.crash ? pred.crash.i : pred.lost ? pred.lost.i : Infinity;
   for (const p of pred.points) {
+    if (p.i > lastI) break; // ghost points past a crash are display only
     if (p.t - t0 <= plan.elapsed + 0.05) continue;
     const d = Math.hypot(pt[0] - p.x, pt[1] - p.z);
     if (d < bestD) { bestD = d; best = p; }

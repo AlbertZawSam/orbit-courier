@@ -59,3 +59,8 @@ canvas#stage { display: block; width: 100vw; height: 100vh; }
 .hud-notice { position: absolute; top: 56px; left: 50%; transform: translateX(-50%); font-size: 0.85rem; font-style: italic; color: var(--brass); background: rgba(10, 14, 31, 0.8); padding: 0 8px; }
 .hud-notice:empty { display: none; }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+
+#labels { position: fixed; inset: 0; pointer-events: none; overflow: hidden; font-family: ui-monospace, "SF Mono", Consolas, monospace; }
+.atlas-label { position: absolute; left: 0; top: 0; font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--ivory); text-shadow: 0 0 4px var(--void), 0 0 2px var(--void); white-space: nowrap; }
+.atlas-label[data-cls="pin"] { color: var(--cargo); }
+.atlas-label[data-cls="ext"] { color: var(--ivory); font-style: italic; font-family: ui-serif, Georgia, serif; }

@@ -34,6 +34,16 @@ export function createCamera(camera) {
     setTarget(x, z) { goal.set(x, 0, z); },
     snap(x, z) { goal.set(x, 0, z); target.copy(goal); },
     get dist() { return dist; },
+    /**
+     * Fit a world-space rectangle ({minX,maxX,minZ,maxZ}) in view. On `reset` the fit is exact; otherwise the view
+     * only ever zooms out, so aiming never makes the picture jump around.
+     */
+    frame(b, reset = false) {
+      const cx = (b.minX + b.maxX) / 2, cz = (b.minZ + b.maxZ) / 2;
+      const need = Math.max((b.maxX - b.minX) / (1.65 * 0.62), (b.maxZ - b.minZ) / (0.926 * 0.62), 9);
+      if (reset) { goal.set(cx, 0, cz); goalDist = Math.min(90, need); return; }
+      goal.set(cx, 0, cz); goalDist = Math.min(90, Math.max(goalDist, need));
+    },
     zoom(f) { goalDist = Math.min(90, Math.max(6, goalDist * f)); },
     update(dt) {
       const k = 1 - Math.exp(-dt * 4);
