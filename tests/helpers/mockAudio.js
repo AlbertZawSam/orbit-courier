@@ -20,6 +20,7 @@ export class MockAudioContext {
     this.destination = new Node(this, 'destination');
   }
   resume() { this.state = 'running'; this.resumed++; return Promise.resolve(); }
+  suspend() { this.state = 'suspended'; this.suspended = (this.suspended ?? 0) + 1; return Promise.resolve(); }
   advance(s) { this.currentTime += s; }
   createGain() { const n = new Node(this, 'gain'); n.gain = new Param(1); return n; }
   createOscillator() { const n = new Node(this, 'osc'); n.type = 'sine'; n.frequency = new Param(440); n.detune = new Param(0); return n; }

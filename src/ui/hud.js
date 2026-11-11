@@ -1,5 +1,5 @@
 /** DOM HUD: fuel, speed, mission, slow-mo meter, node list, status line, and buttons. */
-export function createHud(root, { onLaunch, onReset, onSlow, onCoach }) {
+export function createHud(root, { onLaunch, onReset, onSlow, onCoach, onSound }) {
   root.innerHTML = `
     <div class="hud-panel" role="status">
       <div class="hud-row"><span class="hud-label">Fuel</span><span class="hud-num" data-k="fuel"></span></div>
@@ -19,6 +19,7 @@ export function createHud(root, { onLaunch, onReset, onSlow, onCoach }) {
       <button data-k="slowbtn">Slow-mo (S)</button>
       <button data-k="reset">Reset (R)</button>
       <button data-k="coach">Navigator (H)</button>
+      <button data-k="soundbtn">Sound</button>
     </div>
     <div class="hud-help">Drag to aim. Click the path to add a burn node (or N); drag its handles, or + - , . to adjust. Tab selects, Delete removes, Enter launches. C changes the camera, F focuses the target.</div>`;
   const q = (k) => root.querySelector(`[data-k="${k}"]`);
@@ -27,6 +28,7 @@ export function createHud(root, { onLaunch, onReset, onSlow, onCoach }) {
   q('reset').addEventListener('click', press(onReset));
   q('slowbtn').addEventListener('click', press(onSlow));
   q('coach').addEventListener('click', press(onCoach));
+  q('soundbtn').addEventListener('click', press(onSound));
   return {
     set(fields) { for (const [k, v] of Object.entries(fields)) if (q(k)) q(k).textContent = v; },
     message(text) { q('msg').textContent = text; },

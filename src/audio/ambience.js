@@ -10,7 +10,7 @@ const RESERVED = 2 + HUM_SLOTS * 2 + 1 + 2; // thrust (noise + saw), hum pairs, 
  */
 export function createAmbience(engine) {
   let built = false, thrust = null, hum = [], doppler = null, shimmer = null;
-  let thrustUntil = { start: -1, duration: 0 }, nextPing = 0, nextFuelPulse = 0;
+  let thrustUntil = { start: -1, duration: 0 }, nextPing = 0, nextFuelPulse = 0, pingOn = true;
 
   function build() {
     const ctx = engine.context, b = engine.buses;
@@ -47,6 +47,7 @@ export function createAmbience(engine) {
 
   return {
     /** A thruster plume for `duration` seconds (launch or a node burn). */
+    setPing(on) { pingOn = !!on; },
     thrustBurst(duration) { thrustUntil = { start: engine.now(), duration }; },
     /**
      * @param {{playing:boolean, frame:object|null, fuelFraction:number, tank:number, progress:number, target:object|null}} s
@@ -78,7 +79,7 @@ export function createAmbience(engine) {
       glide(shimmer.g.gain, p > 0.001 ? 0.03 + 0.05 * p : 0, now, 0.25);
       if (p > 0.001) { glide(shimmer.s1.frequency, shimmerFreq(p), now, 0.2); glide(shimmer.s2.frequency, shimmerFreq(p) * 1.5, now, 0.2); }
 
-      if (s.playing && f?.target && now >= nextPing) { sfx.ping(engine, f.target.r); nextPing = now + pingInterval(f.target.r); }
+      if (pingOn && s.playing && f?.target && now >= nextPing) { sfx.ping(engine, f.target.r); nextPing = now + pingInterval(f.target.r); }
       if (s.playing && lowFuel(s.fuelFraction, s.tank) && now >= nextFuelPulse) { sfx.lowFuel(engine); nextFuelPulse = now + 1.6; }
     },
     get built() { return built; },

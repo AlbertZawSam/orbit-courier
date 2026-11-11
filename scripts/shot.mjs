@@ -38,7 +38,9 @@ await page.waitForFunction(() => window.__orbit.state().phase === 'ended', null,
 // 5. audio smoke test: nothing before a gesture, then a real AudioContext with non-silent output during a launch
 await open('L1');
 console.log('audio before any gesture:', JSON.stringify(await page.evaluate(() => window.__orbit.audio())));
-await page.keyboard.press('Shift'); await page.waitForTimeout(400);
+await page.keyboard.press('Shift'); await page.waitForTimeout(300);
+console.log('audio after Shift only (a modifier key is not a user activation):', JSON.stringify(await page.evaluate(() => window.__orbit.audio())));
+await page.keyboard.press('x'); await page.waitForTimeout(400);
 console.log('audio after a key press :', JSON.stringify(await page.evaluate(() => window.__orbit.audio())));
 await page.evaluate(() => window.__orbit.applySolution()); await page.waitForTimeout(300);
 await page.evaluate(() => window.__orbit.launch());
@@ -47,7 +49,17 @@ for (let k = 0; k < 24; k++) { await page.waitForTimeout(150); levels.push(await
 const rms = levels.map((l) => l.level);
 console.log(`audio level during launch: max ${Math.max(...rms).toFixed(4)}, mean ${(rms.reduce((a, b) => a + b, 0) / rms.length).toFixed(4)}, max voices ${Math.max(...levels.map((l) => l.voices))}`);
 await page.keyboard.press('m'); await page.waitForTimeout(400);
-console.log('after M:', JSON.stringify(await page.evaluate(() => window.__orbit.audio())));
+console.log('after M (muted):', JSON.stringify(await page.evaluate(() => window.__orbit.audio())));
+await page.keyboard.press('m'); await page.waitForTimeout(400);
+// music at idle, the Sound popover, and switching the music off from it
+await open('L1'); await page.keyboard.press('x'); await page.waitForTimeout(2500);
+const idle = []; for (let k = 0; k < 8; k++) { await page.waitForTimeout(120); idle.push((await page.evaluate(() => window.__orbit.audio())).level); }
+console.log(`music at idle: max ${Math.max(...idle).toFixed(4)}, voices ${(await page.evaluate(() => window.__orbit.audio())).voices}`);
+await page.click('[data-k="soundbtn"]'); await page.waitForTimeout(250); await shot('sound-settings');
+await page.click('#settings [data-s="musicOn"]'); await page.waitForTimeout(900);
+const off = []; for (let k = 0; k < 6; k++) { await page.waitForTimeout(120); off.push((await page.evaluate(() => window.__orbit.audio())).level); }
+console.log(`music switched off in the popover: max ${Math.max(...off).toFixed(4)}`);
+await page.click('#settings [data-k="close"]');
 
 // 5. camera modes: cinematic launch, focus, and the replay camera
 await open('L1'); await page.evaluate(() => window.__orbit.applySolution()); await page.waitForTimeout(400);

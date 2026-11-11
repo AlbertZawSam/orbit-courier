@@ -1,5 +1,8 @@
 const KEY = 'orbit.settings.v1';
-export const DEFAULTS = { difficulty: 'easy', quality: 'auto', reducedMotion: null };
+export const DEFAULTS = {
+  difficulty: 'easy', quality: 'auto', reducedMotion: null,
+  soundOn: true, volume: 0.8, sfxOn: true, musicOn: true, humOn: true, pingOn: true, reduceSound: false,
+};
 
 /** Persisted settings (AGENTS.md section 17; more keys arrive with later stages). Unknown stored keys are dropped. */
 export function createSettings(storage) {

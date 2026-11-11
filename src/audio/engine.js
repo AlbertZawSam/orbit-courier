@@ -25,19 +25,20 @@ export class VoicePool {
 /**
  * Web Audio engine. The context is only created on the first user gesture (`unlock`), so browsers allow it,
  * and every method is a safe no-op until then (or when Web Audio is missing).
- * Bus graph: sfx, thrust, hum, ui -> master (trim) -> time-dilation lowpass -> destination.
+ * Bus graph: sfx, thrust, hum, music, ui -> master (trim) -> time-dilation lowpass -> destination.
  */
 export function createAudioEngine({ createContext = defaultContext, maxVoices = 24 } = {}) {
   let ctx = null, master = null, dilation = null, analyser = null, noise = null;
   const buses = {}, pool = new VoicePool(maxVoices);
-  let muted = false, volume = 0.8, slow = false;
+  let muted = false, volume = 0.8, slow = false, resumed = Promise.resolve();
+  const busLevels = {}; // wanted bus gains, remembered so settings made before the first gesture still apply
 
   function build() {
     master = ctx.createGain(); master.gain.value = muted ? 0 : volume;
     dilation = ctx.createBiquadFilter(); dilation.type = 'lowpass'; dilation.frequency.value = 18000; dilation.Q.value = 0.7;
     master.connect(dilation); dilation.connect(ctx.destination);
     analyser = ctx.createAnalyser(); analyser.fftSize = 1024; master.connect(analyser); // a tap for level checks; makes no sound
-    for (const name of ['sfx', 'thrust', 'hum', 'ui']) { const g = ctx.createGain(); g.gain.value = 1; g.connect(master); buses[name] = g; }
+    for (const name of ['sfx', 'thrust', 'hum', 'music', 'ui']) { const g = ctx.createGain(); g.gain.value = busLevels[name] ?? 1; g.connect(master); buses[name] = g; }
     const n = ctx.sampleRate * 2, buf = ctx.createBuffer(1, n, ctx.sampleRate), d = buf.getChannelData(0);
     for (let i = 0; i < n; i++) d[i] = Math.random() * 2 - 1;
     noise = buf;
@@ -48,6 +49,10 @@ export function createAudioEngine({ createContext = defaultContext, maxVoices = 
     get ready() { return ctx !== null; },
     get muted() { return muted; },
     get context() { return ctx; },
+    /** True once the context is actually running (browsers ignore resume() without a real user activation). */
+    get running() { return ctx !== null && ctx.state === 'running'; },
+    /** Settles when the latest resume attempt has finished. */
+    get resumed() { return resumed; },
     now: () => (ctx ? ctx.currentTime : 0),
     /** Create (once) and resume the context. Call from a user gesture. Returns false if Web Audio is unavailable. */
     unlock() {
@@ -56,7 +61,7 @@ export function createAudioEngine({ createContext = defaultContext, maxVoices = 
         if (!ctx) return false;
         build();
       }
-      if (ctx.state === 'suspended') ctx.resume?.();
+      if (ctx.state === 'suspended') resumed = Promise.resolve(ctx.resume?.()).catch(() => {});
       return true;
     },
     noiseBuffer: () => noise,
@@ -77,6 +82,14 @@ export function createAudioEngine({ createContext = defaultContext, maxVoices = 
       muted = !!m;
       if (ctx) master.gain.setTargetAtTime(muted ? 0 : volume, ctx.currentTime, 0.03);
     },
+    /** Set a bus's level (0..1); remembered until the context exists. */
+    setBusGain(name, v) {
+      busLevels[name] = Math.min(1, Math.max(0, v));
+      if (ctx && buses[name]) buses[name].gain.setTargetAtTime(busLevels[name], ctx.currentTime, 0.05);
+    },
+    /** Stop all processing (a hidden tab) and start it again. Safe before the context exists. */
+    suspend() { if (ctx && ctx.state === 'running') ctx.suspend?.(); },
+    resume() { if (ctx && ctx.state === 'suspended') ctx.resume?.(); },
     setVolume(v) { volume = Math.min(1, Math.max(0, v)); if (ctx && !muted) master.gain.setTargetAtTime(volume, ctx.currentTime, 0.03); },
     /** Slow motion closes the master lowpass; leaving it opens it again. */
     setSlow(active, cutoffs = { on: 700, off: 18000 }) {

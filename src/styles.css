@@ -64,3 +64,12 @@ canvas#stage { display: block; width: 100vw; height: 100vh; }
 .atlas-label { position: absolute; left: 0; top: 0; font-size: 0.72rem; font-variant-numeric: tabular-nums; color: var(--ivory); text-shadow: 0 0 4px var(--void), 0 0 2px var(--void); white-space: nowrap; }
 .atlas-label[data-cls="pin"] { color: var(--cargo); }
 .atlas-label[data-cls="ext"] { color: var(--ivory); font-style: italic; font-family: ui-serif, Georgia, serif; }
+
+#settings { position: fixed; top: 16px; right: 16px; width: min(320px, calc(100vw - 32px)); background: rgba(10, 14, 31, 0.95); border: 1px solid var(--brass); font-family: ui-serif, Georgia, serif; z-index: 5; }
+#settings[hidden] { display: none; }
+#settings header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--brass); }
+#settings .row { display: flex; align-items: center; gap: 10px; padding: 7px 12px; }
+#settings .row input[type="range"] { flex: 1; accent-color: var(--brass); }
+#settings .row output { font-family: ui-monospace, "SF Mono", Consolas, monospace; min-width: 3.2em; text-align: right; }
+#settings button { font: inherit; color: var(--ivory); background: var(--void); border: 1px solid var(--brass); padding: 4px 12px; cursor: pointer; }
+#settings :focus-visible { outline: 2px solid var(--safe); outline-offset: 2px; }

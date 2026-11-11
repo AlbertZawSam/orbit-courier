@@ -23,6 +23,8 @@ import { createQualityLoop } from './render/qualityLoop.js';
 import { createFraming } from './render/framing.js';
 import { createPlanEvents } from './game/planEvents.js';
 import { createAudio } from './audio/index.js';
+import { installBrowserAudio } from './audio/browser.js';
+import { createSettingsPanel } from './ui/settingsPanel.js';
 import { audioFrame } from './audio/state.js';
 import { installDebugHook } from './game/debugHook.js';
 import { prefersReducedMotion } from './a11y/motion.js';
@@ -63,9 +65,8 @@ fxBus.on('node_burn', () => cam.rig.shake(0.15));
 
 // Sound: created on the first gesture (browsers require one), driven by the same fxBus so replays are audible too.
 const audio = createAudio({ bus: fxBus });
-const unlockAudio = () => { audio.unlock(); ['pointerdown', 'keydown'].forEach((t) => window.removeEventListener(t, unlockAudio)); };
-['pointerdown', 'keydown'].forEach((t) => window.addEventListener(t, unlockAudio));
-document.addEventListener('click', (e) => { if (e.target.closest?.('button')) bus.emit('ui_click'); });
+installBrowserAudio({ audio, settings, mainBus: bus });
+const settingsPanel = createSettingsPanel(document.getElementById('settings'), { settings });
 
 let levelIndex = 0, level, sys, pad, bodies, band, plan, slow, controls;
 let phase = 'planning'; // planning | flying | replaying | ended
@@ -85,7 +86,7 @@ const bodyName = (id) => sys.byId[id].name ?? id;
 
 const coach = createCoach({ chunks: kb, getContext: () => ({ level, sys, attempts: telemetry.attempts(), skill: 'beginner' }) });
 const coachPanel = createCoachPanel(document.getElementById('coach'), { coach, bus });
-const hud = createHud(document.getElementById('hud'), { onLaunch: () => launch(), onReset: () => reset(), onSlow: () => toggleSlow(), onCoach: () => coachPanel.toggle() });
+const hud = createHud(document.getElementById('hud'), { onLaunch: () => launch(), onReset: () => reset(), onSlow: () => toggleSlow(), onCoach: () => coachPanel.toggle(), onSound: () => settingsPanel.toggle() });
 const card = createResultCard(document.getElementById('card'), {
   onRetry: () => reset(), onNext: () => loadLevel(levelIndex + 1), onReplay: () => startReplay(),
   onAsk: () => { coachPanel.open(); coachPanel.ask('What went wrong?'); },
@@ -110,6 +111,7 @@ function loadLevel(i) {
   bodies?.dispose();
   bodies = createBodies(stage.scene, sys.bodies, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
   bodies.setDetail(quality.settings.planetDetail);
+  audio.music.setTier(level.tier);
   band?.dispose();
   band = createTargetBand(stage.scene, level.mission, { reducedMotion: reduced });
   const [tx, tz] = sys.byId[level.mission.target].pos(t0), [px0, pz0] = pad.pos(t0);
@@ -117,7 +119,7 @@ function loadLevel(i) {
   slow = new SlowMo(level.slowMoSeconds);
   controls = createControls({
     plan, phase: () => phase, pred: () => pred, u, t0: () => t0, changed, launch, reset, toggleSlow, toggleCoach: () => coachPanel.toggle(), cycleQuality: () => quality.cycle(), denied: () => bus.emit('ui_error', { reason: 'refused' }),
-    toggleMute: () => { const m = audio.toggleMute(); hud.notice(m ? 'Sound off' : 'Sound on', 2000); },
+    toggleMute: () => { settings.set('soundOn', !settings.get('soundOn')); hud.notice(settings.get('soundOn') ? 'Sound on' : 'Sound off', 2000); },
     cycleCamera, focusTarget, orbit: (dx, dy) => cam.rig.orbitBy(dx, dy), escape: () => { if (phase === 'replaying') endReplay(true); },
     pad: () => { const [x, z] = pad.pos(t0); return { x, z }; },
     nodeTimeDefault: () => (phase === 'flying' ? flight.elapsed + 1 : ((pred.crash ? pred.crash.t : pred.points[pred.points.length - 1].t) - t0) / 2),
@@ -276,14 +278,16 @@ stage.renderer.setAnimationLoop((now) => {
     const fuelFraction = level.fuel > 0 ? Math.max(0, 1 - live.fuelUsed / level.fuel) : 1;
     if (!fuelLowSent && phase === 'flying' && level.fuel > 0 && live.fuelUsed > 0 && fuelFraction < 0.2) { fuelLowSent = true; bus.emit('fuel_low', { fraction: fuelFraction }); }
     if (phase === 'flying' && now - progressAt > 250) { progressAt = now; bus.emit('mission_progress', { progress: live.missionState?.progress ?? 0 }); }
-    audio.update({ playing, frame: audioFrame(sys, live.probe, live.t, level.mission.target), fuelFraction, tank: level.fuel, progress: live.missionState?.progress ?? 0, target: null });
-  } else audio.update({ playing: false, frame: null, fuelFraction: 1, tank: level.fuel, progress: 0, target: null });
+    const frame = audioFrame(sys, live.probe, live.t, level.mission.target);
+    const surface = Math.min(...frame.all.map((b) => b.r - b.radius));
+    audio.update({ playing, frame, fuelFraction, tank: level.fuel, progress: live.missionState?.progress ?? 0, target: null, dt, musicInput: { surfaceDist: surface, speed: frame.doppler?.speed ?? 0, fuelFraction, tank: level.fuel } });
+  } else audio.update({ playing: false, frame: null, fuelFraction: 1, tank: level.fuel, progress: 0, target: null, dt, musicInput: {} });
   const tNow = live ? live.t : t0;
   cam.update(dt, {
     probe: live ? live.probe : null, slow: phase === 'flying' && slow.active,
     focus: (id) => { const b = sys.byId[id]; if (!b) return null; const [x, z] = b.pos(tNow); return { x, z, radius: b.radius }; },
   });
-  if (now - cameraShown > 400) { cameraShown = now; hud.set({ camera: cam.mode, sound: audio.engine.ready ? (audio.engine.muted ? 'off' : 'on') : 'starts on click' }); }
+  if (now - cameraShown > 400) { cameraShown = now; hud.set({ camera: cam.mode, sound: audio.engine.ready ? (settings.get('soundOn') ? 'on' : 'off') : 'starts on click' }); }
   sky.update(stage.camera, now / 1000);
   const [bx, bz] = sys.byId[level.mission.target].pos(tNow);
   band.update(bx, bz, now / 1000, live?.missionState?.progress ?? 0);
