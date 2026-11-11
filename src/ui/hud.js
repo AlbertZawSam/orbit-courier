@@ -17,9 +17,10 @@ export function createHud(root, { onLaunch, onReset, onSlow }) {
     </div>
     <div class="hud-help">Drag to aim. Click the path to add a burn node (or N); drag its handles, or + - , . to adjust. Tab selects, Delete removes, Enter launches.</div>`;
   const q = (k) => root.querySelector(`[data-k="${k}"]`);
-  q('launch').addEventListener('click', onLaunch);
-  q('reset').addEventListener('click', onReset);
-  q('slowbtn').addEventListener('click', onSlow);
+  const press = (fn) => (e) => { e.currentTarget.blur(); fn(); }; // keep keyboard shortcuts working after a click
+  q('launch').addEventListener('click', press(onLaunch));
+  q('reset').addEventListener('click', press(onReset));
+  q('slowbtn').addEventListener('click', press(onSlow));
   return {
     set(fields) { for (const [k, v] of Object.entries(fields)) if (q(k)) q(k).textContent = v; },
     message(text) { q('msg').textContent = text; },

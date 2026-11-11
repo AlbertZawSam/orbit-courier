@@ -11,13 +11,15 @@ const LOOK = {
 
 /** Simple lit spheres for every body, plus the star's point light. Procedural shading comes in stage 8. */
 export function createBodies(scene, bodies) {
+  const group = new THREE.Group();
+  scene.add(group);
   const meshes = {};
   for (const b of bodies) {
     const look = LOOK[b.kind] ?? LOOK.moon;
     const mat = new THREE.MeshStandardMaterial({ color: look.color, roughness: 0.9, metalness: 0, emissive: look.emissive ?? 0x000000 });
     const mesh = new THREE.Mesh(new THREE.SphereGeometry(b.radius, 32, 20), mat);
     mesh.name = b.id;
-    scene.add(mesh);
+    group.add(mesh);
     meshes[b.id] = mesh;
     if (b.kind === 'star') {
       const light = new THREE.PointLight(0xfff2d6, 4, 0, 0);
@@ -26,6 +28,7 @@ export function createBodies(scene, bodies) {
   }
   return {
     meshes,
+    dispose() { scene.remove(group); group.traverse((o) => { o.geometry?.dispose(); o.material?.dispose(); }); },
     update(t) { for (const b of bodies) { const [x, z] = b.pos(t); meshes[b.id].position.set(x, 0, z); } },
   };
 }

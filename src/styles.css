@@ -26,3 +26,15 @@ canvas#stage { display: block; width: 100vw; height: 100vh; }
 .hud-nodes { margin: 6px 0 0; padding-left: 20px; font-family: ui-monospace, "SF Mono", Consolas, monospace; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
 .hud-nodes li.sel { color: var(--cargo); }
 .hud-help { max-width: 90vw; text-align: center; }
+
+#card { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(10, 14, 31, 0.55); font-family: ui-serif, Georgia, serif; }
+#card[hidden] { display: none; }
+.card { background: var(--void); border: 1px solid var(--brass); padding: 22px 30px; min-width: 300px; max-width: 90vw; }
+.card h2 { margin: 0 0 8px; font-weight: normal; font-style: italic; color: var(--brass); }
+.card .stars { font-size: 2rem; margin: 4px 0 10px; color: var(--cargo); }
+.card table { border-collapse: collapse; font-size: 0.95rem; }
+.card td { padding: 3px 14px 3px 0; font-variant-numeric: tabular-nums; }
+.card-buttons { display: flex; gap: 10px; margin-top: 16px; }
+.card-buttons button { font: inherit; color: var(--ivory); background: var(--void); border: 1px solid var(--brass); padding: 8px 18px; cursor: pointer; }
+.card-buttons button:hover { background: var(--haze); }
+.card-buttons button:focus-visible { outline: 2px solid var(--safe); outline-offset: 2px; }

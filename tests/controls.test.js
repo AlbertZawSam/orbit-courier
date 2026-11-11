@@ -4,7 +4,7 @@ import { launchProbe } from '../src/sim/probe.js';
 import { predict } from '../src/sim/predict.js';
 import { Plan, handlePos } from '../src/game/plan.js';
 import { createControls } from '../src/input/controls.js';
-import { sandbox } from '../src/levels/sandbox.js';
+import { sandbox } from './fixtures/sandbox.js';
 
 function rig(phase = 'planning') {
   const sys = Object.assign(buildSystem(sandbox.bodies.map((b) => ({ ...b }))), { bounds: sandbox.bounds });

@@ -6,7 +6,7 @@ import { applyBurn, burnCost, nodeBasis } from '../src/sim/nodes.js';
 import { Flight } from '../src/game/flight.js';
 import { SlowMo, SLOW_SCALE } from '../src/game/slowmo.js';
 import { Plan, hitTest, handlePos, dvFromPointer } from '../src/game/plan.js';
-import { sandbox } from '../src/levels/sandbox.js';
+import { sandbox } from './fixtures/sandbox.js';
 
 const make = () => Object.assign(buildSystem(sandbox.bodies.map((b) => ({ ...b }))), { bounds: sandbox.bounds });
 const start = (sys) => launchProbe(sys.byId.home, sys.byId, { angle: 0.6, power: 6.3, t0: 0 });

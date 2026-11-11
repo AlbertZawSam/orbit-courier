@@ -4,7 +4,7 @@ import { launchProbe } from '../src/sim/probe.js';
 import { predict } from '../src/sim/predict.js';
 import { Flight } from '../src/game/flight.js';
 import { createBus } from '../src/state/events.js';
-import { sandbox } from '../src/levels/sandbox.js';
+import { sandbox } from './fixtures/sandbox.js';
 
 const make = () => Object.assign(buildSystem(sandbox.bodies.map((b) => ({ ...b }))), { bounds: sandbox.bounds });
 
