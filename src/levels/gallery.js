@@ -15,3 +15,35 @@ export const GALLERY = {
   par: { fuel: 0 }, hints: ['Look around.', 'Zoom with the wheel.', 'This is the renderer test bench.'], tags: ['launch'],
   solution: { launch: { angle: 0, power: 0, t0: 0 }, nodes: [] },
 };
+
+// One test-bench level per mission type and hazard: dist/index.html#gallery-rendezvous, -landing, -gate, -asteroids, -wind, -dark.
+const variant = (id, name, over) => ({
+  ...GALLERY, id, name, ...over,
+  system: { bodies: over.bodies ?? GALLERY.system.bodies },
+});
+const homeAndMoons = GALLERY.system.bodies.filter((b) => ['sol', 'home', 'kepi'].includes(b.id));
+export const GALLERIES = {
+  gallery: GALLERY,
+  'gallery-rendezvous': variant('G1', 'Rendezvous', {
+    bodies: [...homeAndMoons, { id: 'vex', name: 'Vex', kind: 'station', mu: 0, radius: 0.12, orbit: { a: 6, e: 0, phase: 2.4, parent: 'home' } }],
+    mission: { type: 'rendezvous', target: 'vex', captureDist: 0.9, maxRelSpeed: 1.2 },
+  }),
+  'gallery-landing': variant('G2', 'Soft landing', {
+    bodies: homeAndMoons, mission: { type: 'soft_landing', target: 'kepi', maxLandSpeed: 1.2 },
+  }),
+  'gallery-gate': variant('G3', 'Gate run', {
+    bodies: homeAndMoons,
+    mission: { type: 'gate_run', target: 'kepi', gates: [
+      { x: 19.5, z: 2.4, angle: 0.3, half: 1.2 }, { x: 21.5, z: 5, angle: 0.7, half: 1.2 }, { x: 22.4, z: 8.2, angle: 1.4, half: 1.2 }, { x: 20, z: 11, angle: 2.0, half: 1.2 },
+    ] },
+  }),
+  'gallery-asteroids': variant('G4', 'Asteroid field', {
+    bodies: homeAndMoons, hazards: [{ type: 'asteroids', parent: 'home', rIn: 7, rOut: 9.5, count: 90, seed: 5, minSize: 0.12, maxSize: 0.3 }],
+  }),
+  'gallery-wind': variant('G5', 'Solar wind', {
+    bodies: homeAndMoons, hazards: [{ type: 'solar_wind', x: 21.5, z: 5.5, radius: 4.5, strength: 0.6, angle0: 0.6, rotation: 0.15 }],
+  }),
+  'gallery-dark': variant('G6', 'Dark mass', {
+    bodies: homeAndMoons, hazards: [{ type: 'dark_mass', mu: 120, x: 21, z: 8 }],
+  }),
+};

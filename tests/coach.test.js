@@ -245,3 +245,30 @@ describe('generated knowledge file', () => {
     expect(generated).toEqual(JSON.parse(JSON.stringify(chunks)));
   });
 });
+
+describe('coach knows the new missions and hazards', () => {
+  const r = createRetriever(chunks);
+  const top = (q) => r.retrieve(q).results.map((x) => x.chunk.id);
+  it('finds the right guide for each mission type and hazard', () => {
+    expect(top('how do I rendezvous with a station')[0]).toBe('MI-003');
+    expect(top('how do I do a soft landing')[0]).toBe('MI-004');
+    expect(top('how do gates work in a gate run')[0]).toBe('MI-005');
+    expect(top('what happens if I hit an asteroid')[0]).toBe('HZ-001');
+    expect(top('what is the solar wind')[0]).toBe('HZ-002');
+    expect(top('how close can I fly past the dark mass')[0]).toBe('HZ-003');
+  });
+  it('explains a level whose mission has no orbit band, without NaN', async () => {
+    const { LEVELS: lv } = await import('../src/levels/levels.js');
+    const base = lv[0], sys = buildLevelSystem(base);
+    sys.byId.kepi.radius = 0.5;
+    const levels = [
+      { ...base, mission: { type: 'rendezvous', target: 'kepi', captureDist: 0.5, maxRelSpeed: 1 } },
+      { ...base, mission: { type: 'soft_landing', target: 'kepi', maxLandSpeed: 1 } },
+      { ...base, mission: { type: 'gate_run', target: 'kepi', gates: [{ x: 1, z: 1, angle: 0, half: 1 }] } },
+    ];
+    for (const level of levels) {
+      const coach = createCoach({ chunks, getContext: () => ({ level, sys, attempts: [att({ closestApproaches: { kepi: 9 } }), att({ outcome: 'lost', closestApproaches: { kepi: 12 } })], skill: 'beginner' }) });
+      for (const q of ['explain this level', 'what went wrong', 'what is the circular speed here?', 'how much dv']) expect(coach.ask(q).text, `${level.mission.type}: ${q}`).not.toMatch(/NaN|undefined/);
+    }
+  });
+});

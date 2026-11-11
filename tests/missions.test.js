@@ -89,7 +89,7 @@ describe('mission text', () => {
   const nameOf = (id) => ({ stn: 'Vex', kepi: 'Kepi' }[id] ?? id);
   it('describes the goal of each mission type in plain words', () => {
     expect(missionGoal({ type: 'deliver_orbit', target: 'kepi', rMin: 0.8, rMax: 2.5, holdSeconds: 4 }, nameOf)).toBe('orbit Kepi at 0.8-2.5 for 4 s');
-    expect(missionGoal(RV, nameOf)).toBe('rendezvous with Vex: get within 0.5 at under 1 relative speed');
+    expect(missionGoal(RV, nameOf)).toBe('meet Vex: within 0.5, relative speed under 1');
   });
   it('shows live progress per mission type, and a dash before launch', () => {
     expect(describeProgress(RV, null)).toBe('-');

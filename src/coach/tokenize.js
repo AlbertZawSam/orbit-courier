@@ -1,4 +1,4 @@
-const STOP = new Set(('a an the is are was were be been being to of in on at for and or it its this that these those with as by from i my me you your do does did how what why when where which who can could should would will am if so we they he she not no but than then there here have has had just too also into about over out up get got game games').split(' '));
+const STOP = new Set(('a an the is are was were be been being to of in on at for and or it its this that these those with as by from i my me you your do does did how what why when where which who can could should would will am if so we they he she not no but than then there here have has had just too also into about over out up get got game games tell say please thanks thank hello hey know want need').split(' '));
 
 /** Light stemmer: enough to match plurals and -ing/-ed forms without a dictionary. */
 export function stem(w) {

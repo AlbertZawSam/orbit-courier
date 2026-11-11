@@ -81,6 +81,14 @@ describe('scoring', () => {
 });
 
 describe('renderer test bench', () => {
+  it('every gallery level is schema-valid and none is in the real level list', async () => {
+    const { GALLERIES } = await import('../src/levels/gallery.js');
+    // ids like G0 are deliberately not valid level ids, so a test bench can never be mistaken for a real level
+    for (const [key, g] of Object.entries(GALLERIES)) { expect(validateLevel(g).filter((e) => !/id must look like/.test(e)), key).toEqual([]); expect(LEVELS.map((l) => l.id)).not.toContain(g.id); }
+    expect(Object.keys(GALLERIES)).toEqual(expect.arrayContaining(['gallery-rendezvous', 'gallery-landing', 'gallery-gate', 'gallery-asteroids', 'gallery-wind', 'gallery-dark']));
+    const types = Object.values(GALLERIES).map((g) => g.mission.type);
+    expect(types).toEqual(expect.arrayContaining(['deliver_orbit', 'rendezvous', 'soft_landing', 'gate_run']));
+  });
   it('is not a level, so it never reaches the verifier or the level list', async () => {
     const { GALLERY } = await import('../src/levels/gallery.js');
     expect(LEVELS.map((l) => l.id)).not.toContain(GALLERY.id);

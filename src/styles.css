@@ -12,7 +12,8 @@ canvas#stage { display: block; width: 100vw; height: 100vh; }
 
 #hud { position: fixed; inset: 0; pointer-events: none; font-family: ui-serif, Georgia, serif; }
 #hud > * { pointer-events: auto; }
-.hud-panel { position: absolute; top: 16px; left: 16px; padding: 10px 14px; border: 1px solid var(--brass); background: rgba(10, 14, 31, 0.7); min-width: 190px; }
+.hud-panel { position: absolute; top: 16px; left: 16px; padding: 10px 14px; border: 1px solid var(--brass); background: rgba(10, 14, 31, 0.7); min-width: 190px; max-width: min(340px, 34vw); }
+.hud-row > :last-child { text-align: right; }
 .hud-row { display: flex; justify-content: space-between; gap: 16px; line-height: 1.6; }
 .hud-label { font-style: italic; color: var(--brass); }
 .hud-num { font-family: ui-monospace, "SF Mono", Consolas, monospace; font-variant-numeric: tabular-nums; }

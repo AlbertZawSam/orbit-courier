@@ -21,7 +21,7 @@ function pickBody(q, level, sys) {
 }
 
 function defaultRadius(body, level) {
-  if (body.id === level.mission.target) return (level.mission.rMin + level.mission.rMax) / 2;
+  if (body.id === level.mission.target && level.mission.type === 'deliver_orbit') return (level.mission.rMin + level.mission.rMax) / 2;
   if (body.id === level.launch.padBody) return body.radius * PAD_CLEARANCE;
   return body.radius * 3;
 }
@@ -36,7 +36,8 @@ export function answerCalc(kind, question, { level, sys }) {
   const name = body.name ?? body.id;
   const where = (r) => `${fmt(r)} units from ${name}`;
   if (kind === 'dv') {
-    const [r1, r2] = nums.length >= 2 ? nums : [level.mission.rMin, level.mission.rMax];
+    const orbit = level.mission.type === 'deliver_orbit';
+    const [r1, r2] = nums.length >= 2 ? nums : orbit ? [level.mission.rMin, level.mission.rMax] : [body.radius * 1.5, body.radius * 4];
     const h = hohmann(body.mu, r1, r2);
     return { kind, body, r: r1, value: h.total, numbers: { ...h, r1, r2 },
       lines: [`Hohmann transfer around ${name} (mu ${body.mu}) from r = ${fmt(r1)} to r = ${fmt(r2)}: first burn ${fmt(h.dv1)}, second burn ${fmt(h.dv2)}, total delta-v ${fmt(h.total)}, taking ${fmt(h.transferTime)} s.`],

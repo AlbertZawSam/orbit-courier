@@ -88,7 +88,9 @@ console.log('camera after F:', await page.evaluate(() => window.__orbit.cameraMo
 // 5. the Navigator panel and the renderer test bench
 await open('L3'); await page.keyboard.press('h'); await page.waitForTimeout(200);
 await page.keyboard.type('how do I add a burn node'); await page.keyboard.press('Enter'); await page.waitForTimeout(300); await shot('l3-coach');
-await page.goto(`file://${root}dist/index.html#gallery`); await page.reload(); await page.waitForTimeout(1500); await shot('gallery');
+for (const key of ['gallery', 'gallery-rendezvous', 'gallery-landing', 'gallery-gate', 'gallery-asteroids', 'gallery-wind', 'gallery-dark']) {
+  await page.goto(`file://${root}dist/index.html#${key}`); await page.reload(); await page.waitForTimeout(1400); await shot(key === 'gallery' ? 'gallery' : `g-${key.slice(8)}`);
+}
 
 await browser.close();
 if (problems.length) { console.log('\nBrowser messages:\n  ' + [...new Set(problems)].join('\n  ')); }

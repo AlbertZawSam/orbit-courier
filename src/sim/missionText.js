@@ -4,10 +4,23 @@
 export function missionGoal(m, nameOf = (id) => id) {
   switch (m.type) {
     case 'deliver_orbit': return `orbit ${nameOf(m.target)} at ${m.rMin}-${m.rMax} for ${m.holdSeconds ?? 4} s`;
-    case 'rendezvous': return `rendezvous with ${nameOf(m.target)}: get within ${m.captureDist} at under ${m.maxRelSpeed} relative speed`;
+    case 'rendezvous': return `meet ${nameOf(m.target)}: within ${m.captureDist}, relative speed under ${m.maxRelSpeed}`;
     case 'soft_landing': return `land on ${nameOf(m.target)} slower than ${m.maxLandSpeed}`;
     case 'gate_run': return `fly through ${m.gates.length} gate${m.gates.length === 1 ? '' : 's'} in order`;
     default: return `reach ${nameOf(m.target)}`;
+  }
+}
+
+/**
+ * A rough distance scale for "close enough to the goal" used by the coach: how near the probe should get to the target.
+ * `sys` supplies body radii.
+ */
+export function missionReach(m, sys) {
+  switch (m.type) {
+    case 'deliver_orbit': return m.rMax;
+    case 'rendezvous': return m.captureDist * 4;
+    case 'soft_landing': return (sys?.byId?.[m.target]?.radius ?? 1) * 3;
+    default: return 3;
   }
 }
 

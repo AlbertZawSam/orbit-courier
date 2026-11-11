@@ -1,5 +1,6 @@
 import { vEsc } from '../sim/calc.js';
 import { PAD_CLEARANCE } from '../sim/constants.js';
+import { missionReach } from '../sim/missionText.js';
 
 const pct = (x) => Math.round(x);
 
@@ -13,6 +14,7 @@ export function buildFindings(s, level, sys) {
   const pad = sys.byId[level.launch.padBody];
   const par = level.par.fuel;
   const improve = [], good = [];
+  const reach = missionReach(level.mission, sys);
 
   const crash = s.repeatedOutcome?.outcome.startsWith('crash:') ? s.repeatedOutcome : null;
   if (crash) improve.push({ text: `You crashed into ${nameOf(crash.outcome.split(':')[1])} ${crash.count} times. Raise your closest point with a prograde burn on the far side of the path, or aim to pass farther away.`, query: 'crash periapsis raise burn' });
@@ -33,8 +35,8 @@ export function buildFindings(s, level, sys) {
   if (s.failures >= 2 && s.slowmoSeconds === 0 && s.nodeAttempts > 0) {
     improve.push({ text: 'You have not used slow motion. It makes placing a burn near a close pass much easier.', query: 'slow motion planning' });
   }
-  if (s.delivered === 0 && s.closestToTarget !== null && s.closestToTarget > level.mission.rMax * 2) {
-    improve.push({ text: `Your closest approach to ${target} was ${s.closestToTarget.toFixed(1)} units, far outside the band (${level.mission.rMax}). Aim to pass nearer to it.`, query: 'flying past the target aim' });
+  if (s.delivered === 0 && s.closestToTarget !== null && s.closestToTarget > reach * 2) {
+    improve.push({ text: `Your closest approach to ${target} was ${s.closestToTarget.toFixed(1)} units, far from the goal (within ${reach} is close). Aim to pass nearer to it.`, query: 'flying past the target aim' });
   }
   const fallbackImprove = [
     { text: 'Change one thing at a time and read the preview. Shift with the arrow keys gives fine steps.', query: 'fine adjustments shift keys' },
@@ -47,7 +49,7 @@ export function buildFindings(s, level, sys) {
   if (s.nodeAttempts > 0) good.push({ text: 'You used burn nodes to shape your path.', query: 'burn node add drag' });
   if (s.previewUsed) good.push({ text: 'You checked the preview line, which matches the real flight exactly.', query: 'preview line trajectory' });
   if (s.attempts > 0 && !Object.keys(s.outcomes).some((o) => o.startsWith('crash:'))) good.push({ text: 'No crashes so far: your launches keep a safe distance from the bodies.', query: 'crash collision surface' });
-  if (s.closestToTarget !== null && s.closestToTarget <= level.mission.rMax * 1.5) good.push({ text: `Your closest pass to ${target} was ${s.closestToTarget.toFixed(1)} units, close to the band.`, query: 'orbit band hold mission' });
+  if (s.closestToTarget !== null && s.closestToTarget <= reach * 1.5) good.push({ text: `Your closest pass to ${target} was ${s.closestToTarget.toFixed(1)} units, close to the band.`, query: 'orbit band hold mission' });
   if (s.attempts >= 3) good.push({ text: `You kept experimenting: ${s.attempts} attempts logged on this level.`, query: 'launch angle power practice' });
   const fallbackGood = [
     { text: 'You are learning with every attempt: each preview teaches the shape of an orbit.', query: 'preview line trajectory' },

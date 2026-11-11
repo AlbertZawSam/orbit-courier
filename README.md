@@ -132,7 +132,7 @@ Work proceeds in stages; each stage ends green on `npm test`, and each session e
 |---|---|---|
 | 1 | Playable core and coach: sim, 3D scene, burn nodes, L1-L3, Navigator | Done and verified |
 | 2 | Baseline graphics and audio | Done and verified |
-| 3 | 12 levels, progression, Flight School T1-T4, coach completion | Not started |
+| 3 | 12 levels, progression, Flight School T1-T4, coach completion | In progress: Stage 14 done (all five mission types and three hazards) |
 | 4 | Premium graphics and audio (eclipses, lensing, spatial sound, orchestra) | Not started |
 | 5 | Window map, planner, tugs, relay, flight report, audio-only mode, Flight School T5-T6 | Not started |
 

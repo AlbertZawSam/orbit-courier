@@ -6,7 +6,7 @@ import { createTrajectory } from './render/trajectory.js';
 import { createProbeView } from './render/probe.js';
 import { createNodeView } from './render/nodes.js';
 import { createLabels } from './render/labels.js';
-import { createTargetBand } from './render/band.js';
+import { createLevelView } from './render/levelView.js';
 import { createEffects } from './render/effects.js';
 import { MODES_BY_PHASE } from './render/cameraRig.js';
 import { createInput } from './input/input.js';
@@ -39,11 +39,11 @@ import { Plan } from './game/plan.js';
 import { SlowMo } from './game/slowmo.js';
 import { buildLevelSystem, levelLaunch } from './game/replay.js';
 import { LEVELS } from './levels/levels.js';
-import { GALLERY } from './levels/gallery.js';
+import { GALLERIES } from './levels/gallery.js';
 import { createSky } from './render/sky.js';
 
-const GALLERY_MODE = location.hash === '#gallery'; // renderer test bench: dist/index.html#gallery
-const LIST = GALLERY_MODE ? [GALLERY] : LEVELS;
+const GALLERY_MODE = location.hash.startsWith('#gallery'); // renderer test benches: dist/index.html#gallery, #gallery-gate, ...
+const LIST = GALLERY_MODE ? [GALLERIES[location.hash.slice(1)] ?? GALLERIES.gallery] : LEVELS;
 const bus = createBus();
 const storage = createStorage('');
 const settings = createSettings(storage);
@@ -69,7 +69,7 @@ const audio = createAudio({ bus: fxBus });
 installBrowserAudio({ audio, settings, mainBus: bus });
 const settingsPanel = createSettingsPanel(document.getElementById('settings'), { settings });
 
-let levelIndex = 0, level, sys, pad, bodies, band, plan, slow, controls;
+let levelIndex = 0, level, sys, pad, bodies, levelView, plan, slow, controls;
 let phase = 'planning'; // planning | flying | replaying | ended
 let flight = null, pred = null, lastU = 0, sinceReplan = 0;
 let replayFlight = null, replayEnding = false, lastRun = null, lastShow = null;
@@ -113,8 +113,8 @@ function loadLevel(i) {
   bodies = createBodies(stage.scene, sys.bodies, { reducedMotion: () => prefersReducedMotion(settings.get('reducedMotion')) });
   bodies.setDetail(quality.settings.planetDetail);
   audio.music.setTier(level.tier);
-  band?.dispose();
-  band = createTargetBand(stage.scene, level.mission, { reducedMotion: reduced });
+  levelView?.dispose();
+  levelView = createLevelView(stage.scene, level, sys, { reducedMotion: reduced });
   const [tx, tz] = sys.byId[level.mission.target].pos(t0), [px0, pz0] = pad.pos(t0);
   plan = new Plan({ fuel: level.fuel, maxNodes: level.maxNodes, angleRange: level.launch.angleRange, defaultAim: { angle: Math.atan2(tz - pz0, tx - px0), power: 0.8 } });
   slow = new SlowMo(level.slowMoSeconds);
@@ -289,8 +289,7 @@ stage.renderer.setAnimationLoop((now) => {
   });
   if (now - cameraShown > 400) { cameraShown = now; hud.set({ camera: cam.mode, sound: audio.engine.ready ? (settings.get('soundOn') ? 'on' : 'off') : 'starts on click' }); }
   sky.update(stage.camera, now / 1000);
-  const [bx, bz] = sys.byId[level.mission.target].pos(tNow);
-  band.update(bx, bz, now / 1000, live?.missionState?.progress ?? 0);
+  levelView.update(tNow, now / 1000, live?.missionState ?? null);
   trajectory.setScale(u()); probeView.setScale(u());
   effects.update(dt, u(), live ? live.probe : null);
   labels.update();
