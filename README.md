@@ -118,16 +118,6 @@ Work proceeds in stages; each stage ends green on `npm test`, and each session e
 | 4 | Premium graphics and audio (eclipses, lensing, spatial sound, orchestra) | Not started |
 | 5 | Window map, planner, tugs, relay, flight report, audio-only mode, Flight School T5-T6 | Not started |
 
-## Demo script (about 3 minutes, for the finished game)
 
-1. **0:00** Clear storage, open `dist/index.html` offline. Press Play: Flight School starts before any mission.
-2. **0:30** In T2, drag the launch vector until the preview turns solid green and launch. Point out that the flight matches the preview exactly.
-3. **1:00** In T3, fix a crash by adding a burn node; note the fuel cost equals the burn size. Enter slow-motion.
-4. **1:30** Open the window map (`W`), click a green cell, launch, and win. Listen for the gravity hum and the Doppler flyby.
-5. **2:00** Ask Navigator "what speed gives a circular orbit here?" and show the cited calculator answer. Ask for a plan and show the Assisted tag.
-6. **2:30** Crash on purpose three times, ask "what went wrong?" for a log-based review, then open the flight report and save a postcard.
-7. **2:50** Ask something unrelated to show the polite decline.
-
-## License
 
 [MIT](LICENSE)
