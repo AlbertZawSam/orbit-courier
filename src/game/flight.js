@@ -14,6 +14,7 @@ export class Flight {
     this.sys = sys; this.bus = bus; this.t0 = t0;
     this.probe = probe0; this.i = 0; this.acc = 0;
     this.outcome = null; this.fuelUsed = 0;
+    this.closest = {}; // closest distance to each body over the flight
     this.nodeMap = indexNodes(nodes);
     this.mission = mission ? createMission(mission) : null;
     this.missionState = this.mission?.state() ?? null;
@@ -36,6 +37,10 @@ export class Flight {
       for (const b of r.burns) { this.fuelUsed += b.cost; this.bus?.emit('node_burn', { t: this.t, dv: b.dv, cost: b.cost }); }
       this.i++;
       const t = this.t;
+      for (const b of this.sys.bodies) {
+        const [bx, bz] = b.pos(t), d = Math.hypot(this.probe.x - bx, this.probe.z - bz);
+        if (!(d >= this.closest[b.id])) this.closest[b.id] = d;
+      }
       const out = detectOutcome(this.probe, t, this.sys.bodies, this.sys.bounds ?? Infinity);
       if (out) { this.outcome = { ...out, t }; this.bus?.emit(out.type, this.outcome); break; }
       if (this.mission) {

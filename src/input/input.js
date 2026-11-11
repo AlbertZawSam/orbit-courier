@@ -25,7 +25,7 @@ export function createInput({ canvas, camera, controls, onZoom }) {
   canvas.addEventListener('pointercancel', end);
   canvas.addEventListener('wheel', (e) => { e.preventDefault(); onZoom(e.deltaY > 0 ? 1.1 : 0.9); }, { passive: false });
   window.addEventListener('keydown', (e) => {
-    if (e.target instanceof HTMLInputElement || e.target.closest?.('#card') || e.metaKey || e.ctrlKey) return;
+    if (e.target instanceof HTMLInputElement || e.target.closest?.('#card, #coach') || e.metaKey || e.ctrlKey) return;
     if (controls.onKey(e)) e.preventDefault();
   });
 }

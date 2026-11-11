@@ -8,7 +8,7 @@ A 3D space-delivery game. Launch a small probe from a planet, plan burns on a li
 - **Procedural everything.** No image, audio, or font files: graphics are geometry, shaders, and canvas textures; sound is synthesized with Web Audio.
 - **Preview equals flight.** The trajectory preview and the live flight call the same `step` function, and a test enforces it.
 
-> **Status: early development.** Stages 0-4 (scaffold, single-file build, offline checker, pure simulation, playable 3D game with burn nodes, slow-motion, three levels and scoring) are done. The simulation, levels, graphics, audio, Flight School tutorial, and Navigator are being built in the stages listed in [CLAUDE.md](CLAUDE.md). Sections below describe the target design from [AGENTS.md](AGENTS.md); the roadmap table shows what exists today.
+> **Status: early development.** Stages 0-5 (scaffold, single-file build, offline checker, pure simulation, playable 3D game with burn nodes, slow-motion, three levels, scoring, and the offline Navigator coach) are done. The simulation, levels, graphics, audio, Flight School tutorial, and Navigator are being built in the stages listed in [CLAUDE.md](CLAUDE.md). Sections below describe the target design from [AGENTS.md](AGENTS.md); the roadmap table shows what exists today.
 
 ## Quick start
 
@@ -112,7 +112,7 @@ Work proceeds in stages; each stage ends green on `npm test`, and each session e
 
 | Session | Focus | State |
 |---|---|---|
-| 1 | Playable core and coach: sim, 3D scene, burn nodes, L1-L3, Navigator | Stages 0-4 done (scaffold, pure sim, 3D scene, burn nodes, slow-mo, levels L1-L3, scoring) |
+| 1 | Playable core and coach: sim, 3D scene, burn nodes, L1-L3, Navigator | Stages 0-5 done (scaffold, pure sim, 3D scene, burn nodes, slow-mo, levels L1-L3, scoring, Navigator) |
 | 2 | Baseline graphics and audio | Not started |
 | 3 | 12 levels, progression, Flight School T1-T4, coach completion | Not started |
 | 4 | Premium graphics and audio (eclipses, lensing, spatial sound, orchestra) | Not started |

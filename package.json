@@ -6,7 +6,7 @@
   "license": "MIT",
   "scripts": {
     "kb": "node scripts/build-knowledge.mjs",
-    "dev": "vite",
+    "dev": "npm run kb && vite",
     "test": "vitest run",
     "levels": "node scripts/verify-levels.mjs",
     "build": "npm run kb && vite build && node scripts/check-offline.mjs",

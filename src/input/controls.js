@@ -38,6 +38,7 @@ export function createControls(ctx) {
 
   function onKey(e) {
     const k = e.key, fine = e.shiftKey ? 0.01 : 0.05;
+    if (k === 'h' || k === 'H') { ctx.toggleCoach(); return true; }
     if (k === 'r' || k === 'R') { ctx.reset(); return true; }
     if (k === 's' || k === 'S') { ctx.toggleSlow(); return true; }
     if (k === 'Enter' || k === ' ') { ctx.launch(); return true; }

@@ -1,11 +1,12 @@
 /** Result card: win (stars, payout, fuel versus par) or lose (why), with Retry and Next. */
-export function createResultCard(root, { onRetry, onNext }) {
+export function createResultCard(root, { onRetry, onNext, onAsk }) {
   root.hidden = true;
   const render = (html) => { root.innerHTML = html; root.hidden = false; root.querySelector('button')?.focus(); };
   root.addEventListener('click', (e) => {
     const k = e.target?.dataset?.k;
     if (k === 'retry') onRetry();
     if (k === 'next') onNext();
+    if (k === 'ask') onAsk();
   });
   return {
     hide() { root.hidden = true; root.innerHTML = ''; },
@@ -24,7 +25,7 @@ export function createResultCard(root, { onRetry, onNext }) {
     lose({ level, reason }) {
       render(`<div class="card" role="dialog" aria-label="Attempt failed">
         <h2>${level.name}: not this time</h2><p>${reason}</p>
-        <div class="card-buttons"><button data-k="retry">Retry</button></div></div>`);
+        <div class="card-buttons"><button data-k="retry">Retry</button><button data-k="ask">Ask Navigator</button></div></div>`);
     },
   };
 }

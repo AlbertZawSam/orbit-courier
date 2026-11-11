@@ -1,5 +1,5 @@
 /** DOM HUD: fuel, speed, mission, slow-mo meter, node list, status line, and buttons. */
-export function createHud(root, { onLaunch, onReset, onSlow }) {
+export function createHud(root, { onLaunch, onReset, onSlow, onCoach }) {
   root.innerHTML = `
     <div class="hud-panel" role="status">
       <div class="hud-row"><span class="hud-label">Fuel</span><span class="hud-num" data-k="fuel"></span></div>
@@ -14,6 +14,7 @@ export function createHud(root, { onLaunch, onReset, onSlow }) {
       <button data-k="launch">Launch</button>
       <button data-k="slowbtn">Slow-mo (S)</button>
       <button data-k="reset">Reset (R)</button>
+      <button data-k="coach">Navigator (H)</button>
     </div>
     <div class="hud-help">Drag to aim. Click the path to add a burn node (or N); drag its handles, or + - , . to adjust. Tab selects, Delete removes, Enter launches.</div>`;
   const q = (k) => root.querySelector(`[data-k="${k}"]`);
@@ -21,6 +22,7 @@ export function createHud(root, { onLaunch, onReset, onSlow }) {
   q('launch').addEventListener('click', press(onLaunch));
   q('reset').addEventListener('click', press(onReset));
   q('slowbtn').addEventListener('click', press(onSlow));
+  q('coach').addEventListener('click', press(onCoach));
   return {
     set(fields) { for (const [k, v] of Object.entries(fields)) if (q(k)) q(k).textContent = v; },
     message(text) { q('msg').textContent = text; },
