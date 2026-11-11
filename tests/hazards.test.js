@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystem } from '../src/sim/rails.js';
-import { createAsteroidField, createHazards, rng, BUCKET_WIDTH } from '../src/sim/hazards.js';
+import { createAsteroidField, createSolarWind, createHazards, rng, BUCKET_WIDTH } from '../src/sim/hazards.js';
+import { accel } from '../src/sim/gravity.js';
+import { validateLevel } from '../src/levels/schema.js';
+import { createMission } from '../src/sim/missions.js';
 import { detectOutcome } from '../src/sim/outcome.js';
 import { predict } from '../src/sim/predict.js';
 import { Flight } from '../src/game/flight.js';
@@ -119,5 +122,86 @@ describe('asteroid collisions in the outcome check, the flight and the preview',
   it('previews can step through a field without mutating it (the same call twice agrees)', () => {
     const sys = world(dense), probe = { x: -25, z: 0.1, vx: 4, vz: 0.02 };
     expect(predict(sys, probe, { steps: 3000 }).crash).toEqual(predict(sys, probe, { steps: 3000 }).crash);
+  });
+});
+
+describe('solar wind', () => {
+  const free = () => Object.assign(buildSystem([{ id: 'sun', kind: 'star', mu: 0, radius: 0 }]), { bounds: 1000 });
+  const wind = (o = {}) => ({ type: 'solar_wind', x: 0, z: 0, radius: 50, strength: 0.5, angle0: 0, rotation: 0, edge: 0.5, ...o });
+  const world = (spec) => { const sys = free(); return Object.assign(sys, { hazards: createHazards([spec], sys.byId) }); };
+
+  it('pushes with a constant strength in its direction inside the zone, and not at all outside', () => {
+    const w = createSolarWind(wind({ angle0: Math.PI / 2 }), free().byId);
+    const [ax, az] = w.accel(3, 4, 0);
+    expect(ax).toBeCloseTo(0, 12); expect(az).toBeCloseTo(0.5, 12);
+    expect(Math.hypot(...w.accel(-10, 20, 7))).toBeCloseTo(0.5, 12);
+    expect(w.accel(80, 0, 0)).toEqual([0, 0]);
+  });
+  it('the direction turns slowly and steadily with time, while the strength stays constant', () => {
+    const w = createSolarWind(wind({ angle0: 0.3, rotation: 0.2 }), free().byId);
+    for (const t of [0, 1, 5, 13]) {
+      const [ax, az] = w.accel(1, 1, t);
+      expect(Math.atan2(az, ax)).toBeCloseTo(0.3 + 0.2 * t, 9);
+      expect(Math.hypot(ax, az)).toBeCloseTo(0.5, 12);
+      expect(w.angleAt(t)).toBeCloseTo(0.3 + 0.2 * t, 12);
+    }
+  });
+  it('fades out smoothly at the rim: no jump, never rises going outwards', () => {
+    const w = createSolarWind(wind({ radius: 10, edge: 2 }), free().byId);
+    expect(w.weight(7, 0, 0)).toBe(1);
+    expect(w.weight(10, 0, 0)).toBe(0);
+    let prev = 1;
+    for (let d = 8; d <= 10.01; d += 0.05) { const x = w.weight(d, 0, 0); expect(x).toBeLessThanOrEqual(prev + 1e-12); expect(prev - x).toBeLessThan(0.1); prev = x; }
+  });
+  it('can follow a moving body', () => {
+    const sys = buildSystem([{ id: 'sun', kind: 'star', mu: 1000, radius: 0 }, { id: 'p', kind: 'rocky', mu: 1, radius: 0, orbit: { a: 30, e: 0, phase: 0, parent: 'sun' } }]);
+    const w = createSolarWind(wind({ parent: 'p', radius: 4 }), sys.byId);
+    const [px, pz] = sys.byId.p.pos(6);
+    expect(Math.hypot(...w.accel(px + 1, pz, 6))).toBeCloseTo(0.5, 12);
+    expect(w.accel(0, 0, 6)).toEqual([0, 0]); // the star's position is far from the zone now
+    expect(w.centreAt(6)).toEqual([px, pz]);
+  });
+  it('adds to the gravity step: accel() sums bodies and hazards', () => {
+    const sys = world(wind({ strength: 0.25, angle0: 0 }));
+    expect(accel(5, 5, 0, sys.bodies, sys.hazards)).toEqual([0.25, 0]);
+  });
+  it('a steady push gives exact constant-acceleration motion in flight (x = a t^2 / 2), and the preview matches the flight', () => {
+    const sys = world(wind({ strength: 0.5 }));
+    const probe = { x: 0, z: 0, vx: 0, vz: 0 };
+    const f = new Flight(sys, probe, { t0: 0 });
+    while (f.elapsed < 2 - 1e-9) f.advance(1 / 120);
+    expect(f.probe.x).toBeCloseTo(0.5 * 0.5 * 4, 6);
+    expect(Math.abs(f.probe.z)).toBeLessThan(1e-12);
+    const pre = predict(sys, probe, { steps: f.i });
+    const last = pre.points.at(-1);
+    expect(Math.abs(last.x - f.probe.x)).toBeLessThan(1e-9);
+    const plain = predict(free(), probe, { steps: f.i }).points.at(-1);
+    expect(plain.x).toBe(0);                                     // without the wind the probe does not move
+  });
+  it('a rotating wind bends the path into a curve', () => {
+    const sys = world(wind({ strength: 0.6, rotation: 0.8 })), probe = { x: 0, z: 0, vx: 2, vz: 0 };
+    const pre = predict(sys, probe, { steps: 1200 });
+    const end = pre.points.at(-1);
+    expect(Math.abs(end.z)).toBeGreaterThan(1);                  // pushed sideways as the direction turned
+    const straight = predict(free(), probe, { steps: 1200 }).points.at(-1);
+    expect(straight.z).toBe(0);
+  });
+  it('a wind changes whether a gate run is won: it pushes the probe off a gate, and a compensating aim wins', () => {
+    const mission = { type: 'gate_run', target: 'sun', gates: [{ x: 10, z: 0, angle: Math.PI / 2, half: 1 }] };
+    const run = (sys, probe) => { const f = new Flight(sys, probe, { t0: 0, mission }); while (!f.done && f.elapsed < 8) f.advance(0.25); return f; };
+    const straight = { x: 0, z: 0, vx: 2, vz: 0 };
+    expect(run(free(), straight).outcome?.type).toBe('delivered');              // no wind: straight through
+    const windy = world(wind({ strength: 0.5, angle0: Math.PI / 2 }));          // pushes +z: after 5 s it is 6.25 off the gate
+    expect(run(windy, straight).done).toBe(false);
+    expect(run(windy, { ...straight, vz: -1.25 }).outcome?.type).toBe('delivered'); // aimed to drift back onto the gate
+    expect(createMission(mission).type).toBe('gate_run');
+  });
+  it('is built from level data and checked by the schema', () => {
+    expect(createHazards([wind()], free().byId)[0].type).toBe('solar_wind');
+    const base = LEVELS[0];
+    expect(validateLevel({ ...base, hazards: [wind()] }).filter((e) => /hazard|wind/.test(e))).toEqual([]);
+    expect(validateLevel({ ...base, hazards: [{ type: 'solar_wind', radius: 0, strength: 1 }] }).join('\n')).toMatch(/solar_wind needs/);
+    expect(validateLevel({ ...base, hazards: [{ type: 'asteroids', parent: 'nowhere', rIn: 5, rOut: 3, count: 0 }] }).join('\n')).toMatch(/asteroids need/);
+    expect(validateLevel({ ...base, hazards: [{ type: 'comet' }] }).join('\n')).toMatch(/unknown hazard type "comet"/);
   });
 });

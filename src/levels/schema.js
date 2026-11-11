@@ -16,6 +16,11 @@ export function validateLevel(l) {
     if (b.orbit) need(ids.has(b.orbit.parent), `body ${b.id} has unknown parent ${b.orbit.parent}`);
   }
   need(Array.isArray(l.hazards), 'hazards must be an array');
+  for (const h of l.hazards ?? []) {
+    if (h.type === 'asteroids') need(ids.has(h.parent) && h.rIn > 0 && h.rOut > h.rIn && h.count > 0, 'asteroids need a parent body, rIn < rOut and a count');
+    else if (h.type === 'solar_wind') need(h.radius > 0 && Number.isFinite(h.strength), 'solar_wind needs radius and strength');
+    else need(false, `unknown hazard type "${h.type}"`);
+  }
   need(ids.has(l.launch?.padBody), 'launch.padBody must be a body');
   need(l.launch?.maxSpeed > 0, 'launch.maxSpeed must be positive');
   need(l.mission && ids.has(l.mission.target), 'mission.target must be a body');

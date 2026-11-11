@@ -64,11 +64,39 @@ export function createAsteroidField(spec, byId) {
   };
 }
 
+/**
+ * Solar wind: inside a circular zone the probe feels a constant push of size `strength`, whose direction turns at
+ * `rotation` rad/s starting from `angle0`. The push fades smoothly over `edge` units at the zone's rim so the force
+ * never jumps. With `parent` the zone moves with that body (x, z become an offset from it).
+ */
+export function createSolarWind(spec, byId) {
+  const { x = 0, z = 0, radius, strength, angle0 = 0, rotation = 0.1, edge = 0.5, parent = null } = spec;
+  const centre = (t) => { if (!parent) return [x, z]; const [px, pz] = byId[parent].pos(t); return [px + x, pz + z]; };
+  return {
+    type: 'solar_wind', x, z, radius, strength, angle0, rotation, edge, parent,
+    angleAt: (t) => angle0 + rotation * t,
+    /** 1 in the core, easing to 0 at the rim, 0 outside. */
+    weight(px, pz, t) {
+      const [cx, cz] = centre(t), d = Math.hypot(px - cx, pz - cz);
+      const u = Math.min(1, Math.max(0, (radius - d) / edge));
+      return u * u * (3 - 2 * u);
+    },
+    accel(px, pz, t) {
+      const w = this.weight(px, pz, t);
+      if (w === 0) return [0, 0];
+      const a = angle0 + rotation * t;
+      return [strength * w * Math.cos(a), strength * w * Math.sin(a)];
+    },
+    centreAt: centre,
+  };
+}
+
 /** Build hazard objects from level data. Dark masses are bodies, not hazards (see darkMassBody). */
 export function createHazards(specs = [], byId) {
   const out = [];
   for (const s of specs) {
     if (s.type === 'asteroids') out.push(createAsteroidField(s, byId));
+    else if (s.type === 'solar_wind') out.push(createSolarWind(s, byId));
     else if (s.type === 'dark_mass') continue;
     else throw new Error(`unknown hazard type: ${s.type}`);
   }
