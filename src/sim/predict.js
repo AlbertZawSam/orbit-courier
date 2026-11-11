@@ -5,7 +5,7 @@ import { velAt } from './rails.js';
 import { detectOutcome } from './outcome.js';
 import { advanceProbe } from './advance.js';
 import { indexNodes } from './nodes.js';
-import { createMission } from './missions.js';
+import { createMission, landingOf } from './missions.js';
 
 /** Two-body orbital elements of the probe relative to `body` at time t. */
 export function elementsAbout(p, body, t, byId) {
@@ -47,6 +47,7 @@ export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS, no
   };
   let p = probe0, crash = null, lost = null, delivered = null;
   const tracker = mission ? createMission(mission, missionHeld) : null;
+  const landing = landingOf(mission);
   note(p, points[0].t, startIndex);
   for (let k = 0; k < steps; k++) {
     const i = startIndex + k;
@@ -57,7 +58,8 @@ export function predict(sys, probe0, { t0 = 0, steps = DEFAULT_PREVIEW_STEPS, no
     points.push({ i: i + 1, t, x: p.x, z: p.z });
     note(p, t, i + 1);
     if (crash || lost) continue; // ghost mode: already ended, keep drawing
-    const out = detectOutcome(p, t, bodies, bounds);
+    const out = detectOutcome(p, t, bodies, bounds, { landing, byId });
+    if (out?.type === 'landed') { delivered = { t, i: i + 1, x: p.x, z: p.z, how: 'landed' }; break; }
     if (out?.type === 'crash') { crash = { bodyId: out.bodyId, t, i: i + 1, x: out.x, z: out.z }; if (!ghost) break; }
     else if (out?.type === 'lost') { lost = { t, i: i + 1 }; if (!ghost) break; }
     if (!out && tracker && tracker.update(p, t, byId).done) { delivered = { t, i: i + 1, x: p.x, z: p.z }; break; }

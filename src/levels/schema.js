@@ -22,6 +22,7 @@ export function validateLevel(l) {
   const m = l.mission ?? {};
   if (m.type === 'deliver_orbit') need(m.rMin > 0 && m.rMax > m.rMin && m.holdSeconds > 0, 'deliver_orbit needs rMin < rMax and holdSeconds');
   else if (m.type === 'rendezvous') need(m.captureDist > 0 && m.maxRelSpeed > 0, 'rendezvous needs captureDist and maxRelSpeed');
+  else if (m.type === 'soft_landing') need(m.maxLandSpeed > 0, 'soft_landing needs maxLandSpeed');
   else need(false, `unknown mission type "${m.type}"`);
   need(l.fuel >= 0 && Number.isInteger(l.maxNodes) && l.maxNodes >= 0, 'fuel and maxNodes required');
   need(l.slowMoSeconds >= 0, 'slowMoSeconds required');

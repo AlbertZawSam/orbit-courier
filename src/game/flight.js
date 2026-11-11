@@ -3,7 +3,7 @@ import { timeAt } from '../sim/gravity.js';
 import { detectOutcome } from '../sim/outcome.js';
 import { advanceProbe } from '../sim/advance.js';
 import { indexNodes } from '../sim/nodes.js';
-import { createMission } from '../sim/missions.js';
+import { createMission, landingOf } from '../sim/missions.js';
 
 /**
  * Live flight. Pure (no three.js, no DOM): advances the probe with the same `advanceProbe`
@@ -17,6 +17,7 @@ export class Flight {
     this.closest = {}; // closest distance to each body over the flight
     this.nodeMap = indexNodes(nodes);
     this.mission = mission ? createMission(mission) : null;
+    this.landing = landingOf(mission);
     this.missionState = this.mission?.state() ?? null;
   }
   get t() { return timeAt(this.t0, this.i); }
@@ -42,7 +43,13 @@ export class Flight {
         const [bx, bz] = b.pos(t), d = Math.hypot(this.probe.x - bx, this.probe.z - bz);
         if (!(d >= this.closest[b.id])) this.closest[b.id] = d;
       }
-      const out = detectOutcome(this.probe, t, this.sys.bodies, this.sys.bounds ?? Infinity);
+      const out = detectOutcome(this.probe, t, this.sys.bodies, this.sys.bounds ?? Infinity, { landing: this.landing, byId: this.sys.byId });
+      if (out?.type === 'landed') {
+        this.missionState = { done: true, progress: 1, altitude: 0, speed: out.speed };
+        this.outcome = { type: 'delivered', how: 'landed', speed: out.speed, t };
+        this.bus?.emit('mission_complete', this.outcome);
+        break;
+      }
       if (out) { this.outcome = { ...out, t }; this.bus?.emit(out.type, this.outcome); break; }
       if (this.mission) {
         const was = this.missionState?.done;

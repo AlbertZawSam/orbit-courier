@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { buildSystem, velAt } from '../src/sim/rails.js';
 import { predict } from '../src/sim/predict.js';
-import { createMission, createRendezvous } from '../src/sim/missions.js';
+import { createMission, createRendezvous, createSoftLanding, landingOf } from '../src/sim/missions.js';
+import { detectOutcome } from '../src/sim/outcome.js';
 import { missionGoal, describeProgress } from '../src/sim/missionText.js';
 import { validateLevel } from '../src/levels/schema.js';
 import { Flight } from '../src/game/flight.js';
@@ -107,5 +108,81 @@ describe('level schema checks mission fields', () => {
     const bad = { ...good, mission: { ...RV, captureDist: 0 } };
     expect(validateLevel(bad).join('\n')).toMatch(/rendezvous needs captureDist/);
     expect(validateLevel({ ...good, mission: { ...RV, type: 'teleport' } }).join('\n')).toMatch(/unknown mission type/);
+  });
+});
+
+/** A massless, static moon of radius 1 at the origin: free flight, so a straight path decides everything. */
+const moon = (extra = {}) => Object.assign(buildSystem([{ id: 'moon', name: 'Pip', kind: 'moon', mu: 0, radius: 1, ...extra }]), { bounds: 200 });
+const SL = { type: 'soft_landing', target: 'moon', maxLandSpeed: 1 };
+const probeAt = (x, vx, extra = {}) => ({ x, z: 0, vx, vz: 0, ...extra });
+
+describe('soft landing', () => {
+  it('a slow touchdown wins', () => {
+    const f = fly(moon(), probeAt(-8, 0.6), SL);
+    expect(f.outcome).toMatchObject({ type: 'delivered', how: 'landed' });
+    expect(f.outcome.speed).toBeCloseTo(0.6, 9);
+    expect(f.missionState).toMatchObject({ done: true, progress: 1 });
+  });
+  it('a fast touchdown is a crash', () => {
+    const f = fly(moon(), probeAt(-8, 2.5), SL);
+    expect(f.outcome.type).toBe('crash');
+    expect(f.outcome.bodyId).toBe('moon');
+    expect(f.outcome.speed).toBeCloseTo(2.5, 9);
+  });
+  it('the limit is inclusive and the boundary behaves on both sides', () => {
+    expect(fly(moon(), probeAt(-8, 1), SL).outcome.type).toBe('delivered');
+    expect(fly(moon(), probeAt(-8, 1.05), SL).outcome.type).toBe('crash');
+  });
+  it('touching a different body is a crash however slowly, and without a landing mission a slow touch also crashes', () => {
+    const other = Object.assign(buildSystem([{ id: 'moon', kind: 'moon', mu: 0, radius: 1 }, { id: 'rock', kind: 'moon', mu: 0, radius: 1 }]), { bounds: 200 });
+    other.byId.rock.pos = () => [-5, 0]; // a second, static body in the way
+    const f = fly(other, probeAt(-12, 0.3), SL);
+    expect(f.outcome).toMatchObject({ type: 'crash', bodyId: 'rock' });
+    const plain = fly(moon(), probeAt(-8, 0.3), { type: 'rendezvous', target: 'moon', captureDist: 0.01, maxRelSpeed: 0.01 });
+    expect(plain.outcome.type).toBe('crash');
+  });
+  it('speed is measured relative to a moving surface', () => {
+    const sun = { id: 'sun', kind: 'star', mu: 0, radius: 0 };
+    const moving = Object.assign(buildSystem([sun, { id: 'moon', kind: 'moon', mu: 0, radius: 1, orbit: { a: 12, e: 0, phase: 0, parent: 'sun' } }]), { bounds: 500 });
+    // give the sun mass so the moon really moves on its rails
+    moving.byId.sun.mu = 100;
+    const [mx, mz] = moving.byId.moon.pos(0), [vx, vz] = velAt(moving.byId.moon, 0, moving.byId);
+    expect(Math.hypot(vx, vz)).toBeGreaterThan(2);
+    const co = detectOutcome({ x: mx + 0.5, z: mz, vx, vz }, 0, moving.bodies, 500, { landing: landingOf(SL), byId: moving.byId });
+    const still = detectOutcome({ x: mx + 0.5, z: mz, vx: 0, vz: 0 }, 0, moving.bodies, 500, { landing: landingOf(SL), byId: moving.byId });
+    expect(co.type).toBe('landed');
+    expect(still.type).toBe('crash');
+  });
+  it('the preview agrees with the flight: lands on the same step, or crashes on the same step', () => {
+    for (const [v, kind] of [[0.7, 'landed'], [3, 'crash']]) {
+      const sys = moon(), p = probeAt(-9, v);
+      const f = fly(sys, p, SL), pre = predict(sys, p, { steps: 2000, mission: SL });
+      if (kind === 'landed') { expect(f.outcome.type).toBe('delivered'); expect(pre.delivered.i).toBe(f.i); expect(pre.delivered.how).toBe('landed'); expect(pre.crash).toBeNull(); }
+      else { expect(f.outcome.type).toBe('crash'); expect(pre.crash.i).toBe(f.i); expect(pre.delivered).toBeNull(); }
+    }
+  });
+  it('detectOutcome without landing context keeps the old behaviour', () => {
+    const sys = moon();
+    expect(detectOutcome({ x: 0.5, z: 0, vx: 0, vz: 0 }, 0, sys.bodies).type).toBe('crash');
+    expect(detectOutcome({ x: 5, z: 0, vx: 0, vz: 0 }, 0, sys.bodies)).toBeNull();
+    expect(detectOutcome({ x: 500, z: 0, vx: 0, vz: 0 }, 0, sys.bodies, 100).type).toBe('lost');
+    expect(landingOf(RV)).toBeNull();
+    expect(landingOf(SL)).toEqual({ target: 'moon', maxLandSpeed: 1 });
+  });
+  it('reports the approach: progress rises as altitude falls, and is capped when too fast', () => {
+    const sys = moon();
+    const at = (x, v) => createSoftLanding(SL).update({ x, z: 0, vx: v, vz: 0 }, 0, sys.byId);
+    let prev = -1; for (const x of [-20, -9, -6, -4, -2, -1.2]) { const p = at(x, 0.5).progress; expect(p).toBeGreaterThanOrEqual(prev); prev = p; }
+    expect(at(-2, 5).progress).toBeLessThan(at(-2, 0.5).progress);
+    expect(at(-6, 0).altitude).toBeCloseTo(5, 9);
+    expect(createSoftLanding(SL).state().progress).toBe(0);
+    expect(createMission(SL).type).toBe('soft_landing');
+  });
+  it('has its own goal text and progress readout, and a schema rule', () => {
+    expect(missionGoal(SL, () => 'Pip')).toBe('land on Pip slower than 1');
+    expect(describeProgress(SL, { altitude: 3.456, speed: 1.23 })).toBe('altitude 3.5, speed 1.2 (max 1)');
+    expect(describeProgress(SL, { altitude: Infinity, speed: Infinity })).toBe('-');
+    const base = LEVELS[0];
+    expect(validateLevel({ ...base, mission: { ...SL, target: 'kepi', maxLandSpeed: 0 } }).join('\n')).toMatch(/soft_landing needs maxLandSpeed/);
   });
 });
