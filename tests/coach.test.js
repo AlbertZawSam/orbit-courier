@@ -237,3 +237,11 @@ describe('answers', () => {
     expect(a.retrieved[0].score).toBeGreaterThan(0);
   });
 });
+
+describe('generated knowledge file', () => {
+  it('is committed and in sync with knowledge/*.md (run `npm run kb` after editing a guide)', async () => {
+    const { readFileSync } = await import('node:fs');
+    const generated = JSON.parse(readFileSync(new URL('../src/coach/kb.generated.json', import.meta.url), 'utf8'));
+    expect(generated).toEqual(JSON.parse(JSON.stringify(chunks)));
+  });
+});

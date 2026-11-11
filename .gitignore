@@ -2,4 +2,3 @@ node_modules/
 dist/
 .DS_Store
 shots/
-src/coach/kb.generated.json
